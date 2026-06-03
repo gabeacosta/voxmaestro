@@ -15,6 +15,21 @@
 
 ---
 
+> VoxMaestro is the public alpha of my voice-agent orchestration layer.
+> It focuses on deterministic conversation control: YAML state machines, mid-call tool bridges, filler gates, handoff protocols, and guardrails.
+
+| Capability | Status |
+|---|---|
+| YAML schema | Implemented |
+| State machine | Implemented |
+| Tool bridge dry-run | Implemented |
+| Handoff protocol | Implemented |
+| Pipecat adapter | Early |
+| PII redaction | Configured, needs implementation |
+| Production transport integrations | Not included |
+
+---
+
 ## The Problem
 
 You can run Whisper for STT. You can run Piper for TTS. You can run any LLM for generation.
