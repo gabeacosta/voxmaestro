@@ -11,3 +11,6 @@ build/
 .pytest_cache/
 .ruff_cache/
 *.log
+
+# Stack artifacts
+*.pyc
