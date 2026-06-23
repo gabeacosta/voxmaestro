@@ -32,7 +32,7 @@ import asyncio
 import logging
 from typing import Any, Callable, Optional
 
-from voxmaestro.conductor import CallPhase, ConversationContext, VoxMaestro
+from voxmaestro.conductor import ConversationContext, VoxMaestro
 
 logger = logging.getLogger("voxmaestro.pipecat")
 
