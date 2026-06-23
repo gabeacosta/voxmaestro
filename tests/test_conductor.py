@@ -4,7 +4,6 @@ Tests for VoxMaestro Conductor Engine.
 Run: pytest tests/ -v
 """
 
-import asyncio
 import pytest
 from pathlib import Path
 
@@ -13,7 +12,6 @@ from voxmaestro.conductor import (
     ConversationContext,
     StateMachine,
     ToolBridge,
-    HandoffProtocol,
     SchemaLoader,
     CallPhase,
 )
