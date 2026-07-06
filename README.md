@@ -238,7 +238,7 @@ VoxMaestro is intentionally **model-agnostic** and **transport-agnostic**:
 ## Development
 
 ```bash
-git clone https://github.com/gentic-ai/voxmaestro.git
+git clone https://github.com/genticai0910-png/voxmaestro.git
 cd voxmaestro
 pip install -e ".[dev]"
 pytest tests/ -v
