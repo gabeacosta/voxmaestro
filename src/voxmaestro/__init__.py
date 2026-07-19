@@ -11,15 +11,25 @@ from .conductor import (
     TransitionResult,
     VoxMaestro,
 )
+from .runtime import (
+    CallSession,
+    RuntimeConfigurationError,
+    RuntimeToolResult,
+    VoxMaestroRuntime,
+)
 
 __version__ = "0.1.0"
 __all__ = [
     "VoxMaestro",
+    "VoxMaestroRuntime",
+    "CallSession",
     "ConversationContext",
     "SchemaLoader",
     "StateMachine",
     "ToolBridge",
     "HandoffProtocol",
+    "RuntimeConfigurationError",
+    "RuntimeToolResult",
     "CallPhase",
     "TransitionResult",
     "ToolCallResult",
