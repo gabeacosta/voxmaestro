@@ -1,144 +1,125 @@
-<p align="center">
-  <h1 align="center">🎼 VoxMaestro</h1>
-  <p align="center"><strong>The open source voice agent conductor.</strong></p>
-  <p align="center">Real-time conversation orchestration for AI voice agents.<br/>One YAML file. Full control. Zero vendor lock-in.</p>
-</p>
+<div align="center">
 
-<p align="center">
-  <a href="#quickstart">Quickstart</a> •
-  <a href="#why-voxmaestro">Why VoxMaestro</a> •
-  <a href="#architecture">Architecture</a> •
-  <a href="#schema-reference">Schema</a> •
-  <a href="#integrations">Integrations</a> •
-  <a href="#contributing">Contributing</a>
-</p>
+# VoxMaestro
+
+**Deterministic conversation orchestration for voice agents.**
+
+YAML state machines · tool bridges · filler gates · handoff protocol · runtime boundaries
+
+</div>
 
 ---
 
-> VoxMaestro is the public alpha of my voice-agent orchestration layer.
-> It focuses on deterministic conversation control: YAML state machines, mid-call tool bridges, filler gates, handoff protocols, and guardrails.
+VoxMaestro is a **public alpha** of a voice-agent orchestration layer. It focuses on the control logic between speech/model components and external workflow actions rather than trying to own STT, TTS, telephony, or the LLM itself.
+
+The public repo is useful as an implementation proof surface for:
+
+- declarative conversation state;
+- deterministic transition rules;
+- mid-turn tool orchestration;
+- pre-LLM filler behavior;
+- explicit human-handoff state;
+- runtime truth / capability boundaries;
+- an early Pipecat adapter.
+
+## Current maturity
 
 | Capability | Status |
 |---|---|
 | YAML schema | Implemented |
-| State machine | Implemented |
-| Tool bridge dry-run | Implemented |
+| Core state machine | Implemented |
+| Tool bridge / dry-run path | Implemented |
 | Handoff protocol | Implemented |
-| Pipecat adapter | Early |
-| PII redaction | Configured, needs implementation |
-| Production transport integrations | Not included |
+| Runtime stream / truth surfaces | Implemented |
+| Pipecat adapter | Early adapter |
+| PII redaction | Configuration exists; enforcement not complete |
+| Production telephony transports | Not included |
+| LiveKit / Vocode adapters | Planned |
+
+This is not presented as a turnkey production voice platform.
 
 ---
 
-## The Problem
+## The problem
 
-You can run Whisper for STT. You can run Piper for TTS. You can run any LLM for generation.
+A voice stack can have excellent STT, TTS, telephony, and generation while still failing operationally because the conversation-control layer is implicit.
 
-**But who conducts the conversation?**
+Questions such as these need deterministic ownership:
 
-When your voice agent needs to check a calendar mid-sentence, handle a barge-in within 100ms, or transfer to a human with full context — there's no open source layer for that. Twilio, Vapi, Bland AI, and Retell all keep this proprietary.
+- Which state is the call in?
+- What transitions are legal?
+- What happens while a tool call is in flight?
+- When should a human take over?
+- What does barge-in cancel?
+- Which events are hot-path vs durable/cold-path work?
+- What can the runtime truthfully claim happened?
 
-VoxMaestro is the missing orchestration layer between your audio pipeline and your AI models.
+VoxMaestro makes those concerns explicit instead of burying them inside prompts or provider-specific callback code.
 
-## Why VoxMaestro
-
-| Problem | Before VoxMaestro | With VoxMaestro |
-|---|---|---|
-| Conversation flow | Hardcoded `if/else` chains | Declarative YAML state machine |
-| Mid-call tool use | Dead air while API responds | Pre-LLM filler gate (<100ms perceived) |
-| Human handoff | "Please hold" + cold transfer | 3-phase protocol with context payload |
-| Barge-in handling | Ignore it or break the pipeline | Single event loop tick, audio buffer flush |
-| Vendor lock-in | Rewrite everything to switch | Swap YAML config, keep your models |
-| Observability | `print("DEBUG: got here")` | Structured traces via Langfuse/OpenTelemetry |
-
-## Quickstart
-
-```bash
-pip install voxmaestro
-```
-
-```python
-from voxmaestro import VoxMaestro
-
-# Load your agent from a YAML config
-conductor = VoxMaestro.from_yaml("my_agent.yaml")
-
-# Start a call
-ctx = conductor.new_call(call_id="call-001", caller_phone="+15551234567")
-
-# Process each caller utterance
-result = await conductor.process_turn(ctx, "Do you have anything Thursday at 3?")
-
-# result.filler → "Let me check what we have available."  (fires immediately)
-# result.tool_result → { "available": true, "slots": ["3:00 PM", "3:30 PM"] }
-# result.state → "tool_call" → returns to "qualification"
-```
-
-### With Pipecat
-
-```python
-from voxmaestro import VoxMaestro
-from voxmaestro.integrations.pipecat import VoxMaestroPipecatProcessor
-
-conductor = VoxMaestro.from_yaml("my_agent.yaml")
-processor = VoxMaestroPipecatProcessor(conductor=conductor)
-
-# Drop into your Pipecat pipeline:
-#   STT → [VoxMaestro] → LLM → TTS
-pipeline = Pipeline([
-    transport.input(),
-    stt,
-    processor,      # ← Orchestration lives here
-    llm,
-    tts,
-    transport.output(),
-])
-```
+---
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────┐
-│                  VoxMaestro                       │
-│                                                   │
-│  ┌──────────┐  ┌──────────┐  ┌───────────────┐  │
-│  │  Intent   │  │  State   │  │  Tool Bridge  │  │
-│  │Classifier │→ │ Machine  │→ │  (pre-LLM     │  │
-│  │ (VSAI)   │  │ (YAML)   │  │   filler gate) │  │
-│  └──────────┘  └──────────┘  └───────────────┘  │
-│        │              │              │            │
-│        │              ▼              │            │
-│        │       ┌──────────┐         │            │
-│        │       │ Handoff  │         │            │
-│        │       │ Protocol │         │            │
-│        │       │(3-phase) │         │            │
-│        │       └──────────┘         │            │
-│        │              │              │            │
-└────────┼──────────────┼──────────────┼────────────┘
-         │              │              │
-    ┌────▼────┐   ┌─────▼─────┐  ┌────▼────┐
-    │   STT   │   │  Telephony │  │  LLM +  │
-    │(Whisper)│   │  (Twilio)  │  │   TTS   │
-    └─────────┘   └───────────┘  └─────────┘
+```text
+caller audio
+    ↓
+   STT
+    ↓
+┌───────────────────────────────┐
+│          VoxMaestro           │
+│                               │
+│ intent → state → tool/handoff │
+│          │          │         │
+│          └─ filler ─┘         │
+└───────────────────────────────┘
+    ↓
+   LLM
+    ↓
+   TTS
+    ↓
+caller audio
 ```
 
-### Hot Path vs Cold Path
+The implementation separates the **conversation-control state machine** from transports and model providers so those components can be changed without rewriting the state contract.
 
-VoxMaestro separates real-time voice operations from persistent workflow operations:
+---
 
-- **Hot path** (voice loop): Intent classification → state transition → filler/generation. All in-process memory. No serialization. Sub-200ms budget.
-- **Cold path** (handoff/logging): Context payload delivery, transcript persistence, training data capture. Async, durable, can tolerate latency.
+## Quickstart from source
 
-The barge-in handler is the purest hot path operation — it must cancel TTS output, flush the audio buffer, and resume STT in a single event loop tick. No network calls, no disk I/O.
+```bash
+git clone https://github.com/gabeacosta/voxmaestro.git
+cd voxmaestro
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+pytest tests/ -v
+```
 
-## Schema Reference
+Load an agent from YAML:
 
-VoxMaestro agents are defined in YAML. Think `docker-compose.yml` for voice agents.
+```python
+from voxmaestro import VoxMaestro
 
-### Minimal Config
+conductor = VoxMaestro.from_yaml("my_agent.yaml")
+ctx = conductor.new_call(call_id="call-001", caller_phone="+15551234567")
+
+result = await conductor.process_turn(
+    ctx,
+    "Do you have anything Thursday at 3?",
+)
+```
+
+The exact returned fields depend on the configured state/tool path; the public tests are the stronger source of truth for implemented behavior than README examples.
+
+---
+
+## YAML conversation contract
+
+A minimal configuration looks like:
 
 ```yaml
 schema_version: "0.1.0"
+
 agent:
   name: "my-agent"
   voice:
@@ -155,122 +136,148 @@ intent:
     - id: "question"
       description: "Asking for information"
     - id: "unknown"
-      description: "Can't classify"
+      description: "Cannot classify"
 
 generation:
   provider: "ollama"
   endpoint: "http://localhost:11434/v1/chat/completions"
-  model: "llama3"
+  model: "local-generation-model"
   max_tokens: 150
 
 states:
   initial:
     transitions:
-      greeting: "conversation"
-      "*": "conversation"
+      greeting: conversation
+      "*": conversation
+
   conversation:
     transitions:
-      "*": "conversation"
+      "*": conversation
 ```
 
-### Full Config Sections
-
-| Section | Purpose |
-|---|---|
-| `agent` | Name, language, voice provider + fallback chain |
-| `intent` | Classifier endpoint, model, intent definitions with tool/trigger mappings |
-| `generation` | LLM endpoint, model, system prompt, generation params |
-| `states` | State machine — states, transitions, max_turns, scoring, escalation |
-| `tools` | Mid-turn tool definitions with endpoints, fillers, timeout, failure handling |
-| `handoff` | Delivery channels (webhook, Slack) and context payload fields |
-| `guardrails` | Max duration, silence handling, barge-in, PII redaction, profanity |
-| `observability` | Logging provider, metrics to track |
-
-See [`examples/real_estate_agent.yaml`](examples/real_estate_agent.yaml) for a complete production config.
-
-## Key Concepts
-
-### Mid-Turn Tool Bridge
-
-When a caller says something that requires an API call (checking availability, looking up data), VoxMaestro:
-
-1. **Plays a filler immediately** — pre-rendered audio or static text, bypasses LLM entirely
-2. **Fires the tool call async** — your API, your endpoint, your timeout
-3. **Injects the result** — feeds response into LLM context for natural reply
-4. **Resumes generation** — caller hears the answer, not dead air
-
-The filler fires in <100ms because it's a pre-LLM gate — the lookup from intent → filler is a dict lookup, not a model call.
-
-### 3-Phase Handoff Protocol
-
-Human handoff isn't a single event. VoxMaestro implements three phases:
-
-1. **Decision** — State machine determines handoff is needed. Logs reason.
-2. **Bridge** — Filler plays ("Let me connect you..."). Context payload fires async to webhook/Slack/CRM. Caller hears hold audio.
-3. **Teardown** — Telephony transfer completes. Transcript saved. State flushed to training data. Pipeline closes gracefully.
-
-### Guardrails
-
-- **Max call duration** — hard cap prevents runaway calls
-- **Silence detection** — prompts caller after configurable silence
-- **Barge-in** — cancels TTS, flushes buffer, resumes listening
-- **PII redaction** — configurable allow/redact lists for logging
-- **Max turns per state** — prevents infinite loops with escalation
-
-## Integrations
-
-| Framework | Status | Module |
-|---|---|---|
-| [Pipecat](https://github.com/pipecat-ai/pipecat) | ✅ Built-in | `voxmaestro.integrations.pipecat` |
-| [LiveKit Agents](https://github.com/livekit/agents) | 🔜 Planned | — |
-| [Vocode](https://github.com/vocodedev/vocode-python) | 🔜 Planned | — |
-| Custom / Standalone | ✅ Works now | `voxmaestro.conductor` |
-
-### Pluggable Components
-
-VoxMaestro is intentionally **model-agnostic** and **transport-agnostic**:
-
-- **Intent classifier**: Any HTTP endpoint returning an intent string. Ship your own fine-tuned model or use OpenAI.
-- **Generation model**: Any OpenAI-compatible endpoint. Local (Ollama, MLX), cloud, hybrid.
-- **TTS/STT**: Not VoxMaestro's job. Use whatever your pipeline provides.
-- **Telephony**: Twilio, Vonage, SIP — VoxMaestro doesn't care. It orchestrates conversations, not phone calls.
-
-## Development
-
-```bash
-git clone https://github.com/gabeacosta/voxmaestro.git
-cd voxmaestro
-pip install -e ".[dev]"
-pytest tests/ -v
-```
-
-## Roadmap
-
-- [ ] LiveKit Agents integration
-- [ ] Visual state machine editor (web UI)
-- [ ] Multi-language conversation support
-- [ ] Conversation analytics dashboard
-- [ ] n8n node for cold-path workflows
-- [ ] State machine hot-reload without call interruption
-- [ ] Conversation replay from transcript (testing/debugging)
-
-## Contributing
-
-VoxMaestro is Apache-2.0 licensed. Contributions welcome.
-
-The biggest impact areas right now:
-1. **LiveKit integration** — bring the same frame processor pattern to LiveKit Agents
-2. **More example configs** — healthcare, customer support, restaurant booking
-3. **Visual state machine editor** — render YAML as an interactive graph
-4. **Conversation simulator** — test configs without a live phone line
-
-## License
-
-Apache License 2.0 — use it in production, fork it, sell services on top of it.
+See [`examples/real_estate_agent.yaml`](examples/real_estate_agent.yaml) for a larger example configuration. It is an example contract, not a claim that the repo includes a complete deployed real-estate voice service.
 
 ---
 
-<p align="center">
-  <strong>Built by <a href="https://genticai.pro">Gentic AI Solutions</a></strong><br/>
-  AI automation infrastructure for businesses that move fast.
-</p>
+## Mid-turn tool bridge
+
+The tool bridge is designed around a simple control rule:
+
+```text
+intent says tool needed
+        ↓
+emit filler / progress signal
+        ↓
+execute tool asynchronously
+        ↓
+return tool result to conversation path
+        ↓
+continue generation/state transition
+```
+
+The important property is **ordering**, not a hard-coded latency claim: the filler/progress signal is emitted before waiting for the tool result so the orchestration layer does not require the LLM/tool round trip to begin responding.
+
+Actual end-to-end audio latency depends on the transport, event loop, TTS path, hardware, and provider choices outside this repo.
+
+---
+
+## Human handoff
+
+VoxMaestro models handoff as a protocol rather than a single boolean:
+
+1. **Decision** — the state machine determines that handoff is required and records the reason.
+2. **Bridge** — the runtime emits the handoff/progress event and prepares context for the external transfer path.
+3. **Teardown** — the transport/customer system owns the actual transfer and lifecycle completion.
+
+The public repo implements the orchestration semantics; it does not include every production telephony integration needed to complete a live transfer.
+
+---
+
+## Hot path vs cold path
+
+The design separates operations that affect the live turn from operations that can be durable/asynchronous.
+
+**Hot path examples**
+
+- intent/state evaluation;
+- filler/progress signaling;
+- barge-in state changes;
+- tool-result routing.
+
+**Cold path examples**
+
+- transcript persistence;
+- analytics;
+- training-data capture;
+- CRM/webhook handoff payloads.
+
+Latency numbers are environment-dependent; the repo expresses the boundary rather than claiming a universal sub-100ms or sub-200ms production result.
+
+---
+
+## Pipecat integration
+
+The repository includes an early adapter at:
+
+[`src/voxmaestro/integrations/pipecat.py`](src/voxmaestro/integrations/pipecat.py)
+
+It maps VoxMaestro control events into Pipecat-oriented frame concepts such as filler, tool result, state change, handoff, and barge-in frames.
+
+Status: **early adapter**, not a claim of full compatibility with every current Pipecat transport/version.
+
+Install the optional dependency when evaluating that path:
+
+```bash
+pip install -e ".[pipecat,dev]"
+```
+
+---
+
+## Public tests
+
+The repository contains tests for the conductor and runtime-facing behavior under `tests/`, including:
+
+- `test_conductor.py`
+- `test_runtime_stream.py`
+- `test_runtime_truth.py`
+
+The test suite is the evidence for the specific public behavior it covers. It does not prove production telephony integration, provider uptime, or end-to-end call quality.
+
+---
+
+## What is intentionally not included
+
+- customer data or customer-specific prompts;
+- production telephony credentials/transports;
+- a complete STT/TTS stack;
+- production deployment topology;
+- finished PII-redaction enforcement;
+- LiveKit/Vocode adapters;
+- a visual state-machine editor;
+- claims that provider completion equals workflow acceptance.
+
+---
+
+## Why this matters for Forward Deployed Engineering
+
+Voice-agent deployments are a good example of why applied AI work becomes systems work quickly.
+
+A customer asks for “an AI receptionist,” but the engineering surface becomes:
+
+```text
+business workflow
+  -> conversation state
+  -> external tools
+  -> latency / failure handling
+  -> human escalation
+  -> durable system-of-record update
+  -> runtime evidence
+```
+
+VoxMaestro is the public orchestration slice of that problem.
+
+For the broader deployment and runtime-evaluation story, see the [Forward Deployed Engineering portfolio](https://github.com/gabeacosta/ai-portfolio).
+
+## License
+
+Apache-2.0. The license permits commercial use; it is not a statement of production readiness.
