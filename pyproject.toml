@@ -5,12 +5,12 @@ build-backend = "hatchling.build"
 [project]
 name = "voxmaestro"
 version = "0.1.0"
-description = "The open source voice agent conductor — real-time conversation orchestration for AI voice agents"
+description = "Open-source voice-agent conversation orchestration with explicit runtime boundaries"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
 authors = [
-    { name = "Gentic AI Solutions" },
+    { name = "Gabe Acosta" },
 ]
 keywords = ["voice-ai", "agent", "orchestration", "pipecat", "tts", "stt", "conversation"]
 classifiers = [
@@ -38,10 +38,10 @@ dev = [
 all = ["voxmaestro[pipecat,dev]"]
 
 [project.urls]
-Homepage = "https://github.com/gentic-ai/voxmaestro"
-Documentation = "https://voxmaestro.dev"
-Repository = "https://github.com/gentic-ai/voxmaestro"
-Issues = "https://github.com/gentic-ai/voxmaestro/issues"
+Homepage = "https://github.com/gabeacosta/voxmaestro"
+Repository = "https://github.com/gabeacosta/voxmaestro"
+Issues = "https://github.com/gabeacosta/voxmaestro/issues"
+Portfolio = "https://github.com/gabeacosta/ai-portfolio"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
