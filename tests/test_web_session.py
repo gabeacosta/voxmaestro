@@ -5,7 +5,7 @@ from copy import deepcopy
 
 import pytest
 
-from test_runtime_truth import CONFIG
+from tests.test_runtime_truth import CONFIG
 from voxmaestro import VoxMaestroRuntime
 from voxmaestro.integrations.web_session import WebSessionAdapter
 
