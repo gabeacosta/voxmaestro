@@ -20,7 +20,6 @@ from .conductor import (
     ConversationContext,
     SchemaLoader,
     StateMachine,
-    ToolCallResult,
     TransitionResult,
 )
 
