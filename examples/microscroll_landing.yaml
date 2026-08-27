@@ -1,0 +1,174 @@
+# VoxMaestro microscroll landing-page conversation contract.
+# Text-first on purpose: browser voice is an additive transport concern.
+
+schema_version: "0.1.0"
+
+agent:
+  name: "microscroll-landing"
+  description: "Local-first conversational landing page for qualification and booking requests"
+  language: "en"
+
+intent:
+  provider: "kernel"
+  endpoint: "http://127.0.0.1:7788/v1/intent"
+  model: "fleet:l0_reflex"
+  intents:
+    - id: "greeting"
+      description: "Visitor greets or opens the conversation"
+    - id: "service_question"
+      description: "Visitor asks what the business offers or whether it can solve a problem"
+    - id: "pricing_question"
+      description: "Visitor asks about price, plans, estimates, or cost"
+    - id: "availability_question"
+      description: "Visitor asks about dates, times, openings, or availability"
+      tool: "check_availability"
+    - id: "booking_request"
+      description: "Visitor explicitly wants to schedule, book, or request an appointment"
+      tool: "request_booking"
+    - id: "human_request"
+      description: "Visitor explicitly asks for a person"
+      trigger: "handoff"
+    - id: "not_interested"
+      description: "Visitor wants to stop or leave"
+      trigger: "graceful_exit"
+    - id: "unknown"
+      description: "Intent is unclear and requires a short clarifying question"
+
+generation:
+  provider: "kernel"
+  endpoint: "http://127.0.0.1:7788/v1/generate"
+  model: "fleet:l1_worker"
+  system_prompt: |
+    You are the conversational layer of a business landing page.
+    Keep turns short, useful, and grounded in supplied business context and tool results.
+    Do not invent pricing, availability, policies, or confirmed bookings.
+    Ask one clarifying question at a time.
+    When a tool result is unavailable or failed, state the limitation and offer the configured next step.
+  max_tokens: 120
+  temperature: 0.4
+
+states:
+  initial:
+    entry_action: "play_greeting"
+    transitions:
+      greeting: "engage"
+      service_question: "engage"
+      pricing_question: "engage"
+      availability_question: "tool_call"
+      booking_request: "tool_call"
+      human_request: "handoff"
+      not_interested: "exit"
+      "*": "engage"
+
+  engage:
+    description: "Short discovery and qualification loop for the landing page"
+    max_turns: 8
+    transitions:
+      service_question: "engage"
+      pricing_question: "engage"
+      availability_question: "tool_call"
+      booking_request: "tool_call"
+      human_request: "handoff"
+      not_interested: "exit"
+      "*": "engage"
+    escalation:
+      after_max_turns: "handoff"
+
+  tool_call:
+    description: "Transient bounded tool execution"
+    return_to: "previous"
+    timeout_ms: 2500
+
+  handoff:
+    description: "Explicit human follow-up path"
+    phases:
+      decision:
+        log: true
+        capture_reason: true
+      bridge:
+        filler: "I can get a person the context so you do not have to repeat yourself."
+        action: "fire_context_payload"
+      teardown:
+        save_transcript: true
+        save_to: "handoff_queue"
+
+  exit:
+    description: "Graceful session end"
+    farewell_message: "Thanks for stopping by."
+    actions:
+      - "save_transcript"
+
+tools:
+  check_availability:
+    endpoint: "http://127.0.0.1:7790/internal/availability"
+    method: "POST"
+    timeout_ms: 1800
+    filler:
+      text: "Let me check that."
+    params_from_context:
+      - "requested_date"
+      - "requested_time"
+      - "service"
+    on_success: "inject_result"
+    on_failure:
+      message: "I cannot verify availability right now, but I can capture what you need for follow-up."
+      trigger: "handoff"
+
+  request_booking:
+    endpoint: "http://127.0.0.1:7790/internal/booking-request"
+    method: "POST"
+    timeout_ms: 2000
+    filler:
+      text: "I’ll put that request together."
+    params_from_context:
+      - "name"
+      - "email"
+      - "phone"
+      - "requested_date"
+      - "requested_time"
+      - "service"
+    on_success: "inject_result"
+    on_failure:
+      message: "I could not submit that request, so I am not going to tell you it is booked. I can hand this to a person instead."
+      trigger: "handoff"
+
+handoff:
+  delivery:
+    - channel: "webhook"
+      url: "${HANDOFF_WEBHOOK_URL}"
+      method: "POST"
+  payload:
+    - "caller_phone"
+    - "intent_history"
+    - "qualification_progress"
+    - "conversation_summary"
+    - "handoff_reason"
+    - "caller_sentiment"
+    - "call_duration_seconds"
+
+guardrails:
+  max_call_duration_seconds: 600
+  max_consecutive_silence_ms: 10000
+  silence_prompt: "Still with me?"
+  barge_in:
+    enabled: true
+    action: "cancel_tts_resume_stt"
+  pii_logging:
+    redact:
+      - "ssn"
+      - "credit_card"
+      - "dob"
+    allow:
+      - "phone"
+      - "email"
+      - "name"
+
+observability:
+  logging:
+    provider: "local"
+    level: "info"
+  metrics:
+    - "turns_to_qualification"
+    - "tool_call_latency_ms"
+    - "intent_confidence"
+    - "handoff_rate"
