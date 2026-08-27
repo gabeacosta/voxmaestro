@@ -118,7 +118,10 @@ class PocketTTSBackend:
             if quantize and "quantize" not in sig.parameters:
                 raise RuntimeError("this pocket-tts build has no load_model(quantize=...)")
             load_kwargs: dict[str, Any] = {
-                "language": pocket_language(language, LanguageLane.FAST if language != "fr" else LanguageLane.QUALITY),
+                "language": pocket_language(
+                    language,
+                    LanguageLane.FAST if language != "fr" else LanguageLane.QUALITY,
+                ),
             }
             if "quantize" in sig.parameters:
                 load_kwargs["quantize"] = quantize
@@ -156,7 +159,7 @@ class PocketTTSBackend:
         return self._capabilities
 
     def open_session(self, session_id: str, voice: VoiceManifest) -> None:
-        """Bind one KV voice state to ``session_id"."""
+        """Bind one KV voice state to session_id."""
         if voice.session_id != session_id:
             raise ValueError("voice.session_id must equal session_id (WT-TTS-002)")
         if voice.backend_id != self.backend_id:
@@ -215,7 +218,7 @@ class PocketTTSBackend:
             )
 
     def cancel(self, turn_id: str) -> None:
-        """Stop producing chunks for ``turn_id`` at the next yield."""
+        """Stop producing chunks for turn_id at the next yield."""
         self._cancel.add(turn_id)
 
 
@@ -238,5 +241,4 @@ def _rss_bytes() -> int:
     except ImportError:  # pragma: no cover
         return 0
     usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    # Linux reports KB; macOS reports bytes.
     return usage if usage > 10_000_000 else usage * 1024
