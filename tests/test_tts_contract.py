@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Iterator
+import time
+from collections.abc import Iterator
 
 import pytest
 
@@ -26,20 +27,20 @@ def _consent() -> ConsentRecord:
     )
 
 
-def _manifest(**overrides) -> VoiceManifest:
-    base = dict(
-        voice_id="alba",
-        language="en",
-        lane=LanguageLane.FAST,
-        sample_rate=24000,
-        backend_id="pocket-python",
-        backend_version="test",
-        quantization="int8",
-        consent_record=_consent(),
-        session_id="sess_1",
-    )
+def _manifest(**overrides: object) -> VoiceManifest:
+    base: dict[str, object] = {
+        "voice_id": "alba",
+        "language": "en",
+        "lane": LanguageLane.FAST,
+        "sample_rate": 24000,
+        "backend_id": "pocket-python",
+        "backend_version": "test",
+        "quantization": "int8",
+        "consent_record": _consent(),
+        "session_id": "sess_1",
+    }
     base.update(overrides)
-    return VoiceManifest(**base)
+    return VoiceManifest(**base)  # type: ignore[arg-type]
 
 
 def test_french_requires_quality_lane() -> None:
@@ -129,17 +130,44 @@ class _FakeBackend:
         self.cancelled.append(turn_id)
 
 
-class _StaleBackend(_FakeBackend):
+class _SlowCloseBackend(_FakeBackend):
     def synthesize(self, req: SynthesizeRequest) -> Iterator[AudioChunk]:
-        yield AudioChunk(pcm=b"old", sample_rate=24000, turn_id="old_turn", seq=0)
         yield AudioChunk(
-            pcm=b"new",
+            pcm=b"a",
             sample_rate=24000,
             turn_id=req.turn_id,
             seq=0,
             is_last=True,
             flush_reason="end",
         )
+        time.sleep(0.35)
+
+
+class _HeldBackend(_FakeBackend):
+    def __init__(self) -> None:
+        super().__init__()
+        self.release = threading_event()
+
+    def synthesize(self, req: SynthesizeRequest) -> Iterator[AudioChunk]:
+        self.release.wait(timeout=1.0)
+        yield AudioChunk(
+            pcm=b"held",
+            sample_rate=24000,
+            turn_id=req.turn_id,
+            seq=0,
+            is_last=True,
+            flush_reason="end",
+        )
+
+    def cancel(self, turn_id: str) -> None:
+        super().cancel(turn_id)
+        self.release.set()
+
+
+def threading_event():
+    import threading
+
+    return threading.Event()
 
 
 @pytest.mark.asyncio
@@ -156,14 +184,14 @@ async def test_worker_streams_tagged_chunks() -> None:
     chunks = [chunk async for chunk in worker.stream(req)]
     assert [chunk.seq for chunk in chunks] == [0, 1]
     assert chunks[-1].is_last is True
+    assert backend.cancelled == ["t1"]
 
 
 @pytest.mark.asyncio
 async def test_writer_gate_drops_stale_turn() -> None:
-    backend = _StaleBackend()
+    backend = _FakeBackend()
     worker = TTSWorker(backend)
-    current = {"id": "t1"}
-    gate = WriterGate(lambda: current["id"])
+    gate = WriterGate(lambda: "other")
     req = SynthesizeRequest(
         text="hello",
         turn_id="t1",
@@ -172,7 +200,7 @@ async def test_writer_gate_drops_stale_turn() -> None:
         language="en",
     )
     chunks = [chunk async for chunk in worker.stream(req, gate=gate)]
-    assert [chunk.pcm for chunk in chunks] == [b"new"]
+    assert chunks == []
 
 
 @pytest.mark.asyncio
@@ -189,3 +217,79 @@ async def test_writer_gate_drops_when_no_current_turn() -> None:
     )
     chunks = [chunk async for chunk in worker.stream(req, gate=gate)]
     assert chunks == []
+
+
+@pytest.mark.asyncio
+async def test_cancel_invokes_backend() -> None:
+    backend = _HeldBackend()
+    worker = TTSWorker(backend)
+    req = SynthesizeRequest(
+        text="hello",
+        turn_id="t1",
+        session_id="sess_1",
+        voice=_manifest(),
+        language="en",
+    )
+
+    async def _consume() -> list[AudioChunk]:
+        return [chunk async for chunk in worker.stream(req)]
+
+    task = asyncio.create_task(_consume())
+    await asyncio.sleep(0.05)
+    worker.cancel("t1")
+    chunks = await task
+    assert backend.cancelled[0] == "t1"
+    assert chunks == []
+
+
+@pytest.mark.asyncio
+async def test_cancel_one_turn_leaves_the_other() -> None:
+    backend = _HeldBackend()
+    worker = TTSWorker(backend)
+    voice = _manifest()
+
+    async def _run(turn_id: str) -> list[AudioChunk]:
+        req = SynthesizeRequest(
+            text="hello",
+            turn_id=turn_id,
+            session_id="sess_1",
+            voice=voice,
+            language="en",
+        )
+        return [chunk async for chunk in worker.stream(req)]
+
+    first = asyncio.create_task(_run("t1"))
+    second = asyncio.create_task(_run("t2"))
+    await asyncio.sleep(0.05)
+    worker.cancel("t1")
+    backend.release.set()
+    left, right = await asyncio.gather(first, second)
+    assert left == []
+    assert [chunk.pcm for chunk in right] == [b"held"]
+    assert "t1" in backend.cancelled
+
+
+@pytest.mark.asyncio
+async def test_cleanup_does_not_block_event_loop() -> None:
+    backend = _SlowCloseBackend()
+    worker = TTSWorker(backend)
+    req = SynthesizeRequest(
+        text="hello",
+        turn_id="t1",
+        session_id="sess_1",
+        voice=_manifest(),
+        language="en",
+    )
+    ticks = 0
+
+    async def _ticker() -> None:
+        nonlocal ticks
+        for _ in range(6):
+            ticks += 1
+            await asyncio.sleep(0.05)
+
+    ticker = asyncio.create_task(_ticker())
+    chunks = [chunk async for chunk in worker.stream(req)]
+    await ticker
+    assert chunks[-1].is_last is True
+    assert ticks >= 4

@@ -9,18 +9,23 @@ Invariants:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Iterator
+from dataclasses import dataclass
 from enum import Enum
-from typing import Iterator, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 
 class LanguageLane(str, Enum):
+    """Pocket TTS distill depth. FAST is 6-layer; QUALITY is 24-layer."""
+
     FAST = "6l"
     QUALITY = "24l"
 
 
 @dataclass(frozen=True)
 class LanguageSupport:
+    """Advertised support for one language code."""
+
     code: str
     default_lane: LanguageLane
     has_6l: bool
@@ -48,6 +53,8 @@ POCKET_TTS_LANGUAGES: tuple[LanguageSupport, ...] = (
 
 @dataclass(frozen=True)
 class ConsentRecord:
+    """Provenance for a voice used in synthesis."""
+
     voice_id: str
     source: str
     granted_at: str
@@ -57,6 +64,8 @@ class ConsentRecord:
 
 @dataclass(frozen=True)
 class VoiceManifest:
+    """Session-bound voice handle. KV-cache states must not be shared."""
+
     voice_id: str
     language: str
     lane: LanguageLane
@@ -68,6 +77,7 @@ class VoiceManifest:
     session_id: str
 
     def __post_init__(self) -> None:
+        """Reject French 6l, missing bind, or invalid sample rate."""
         if self.language == "fr" and self.lane is not LanguageLane.QUALITY:
             raise ValueError("French must use the 24l quality lane")
         if not self.session_id:
@@ -82,6 +92,8 @@ class VoiceManifest:
 
 @dataclass(frozen=True)
 class TTSCapabilities:
+    """Runtime-probed backend surface. Do not copy PyPI or README claims."""
+
     backend_id: str
     backend_version: str
     quantizations: tuple[str, ...]
@@ -93,6 +105,7 @@ class TTSCapabilities:
     advertised_from: str
 
     def __post_init__(self) -> None:
+        """Require advertised_from == runtime-probe."""
         if self.advertised_from != "runtime-probe":
             raise ValueError(
                 "TTSCapabilities.advertised_from must be 'runtime-probe' "
@@ -100,6 +113,7 @@ class TTSCapabilities:
             )
 
     def language(self, code: str) -> LanguageSupport:
+        """Return support for ``code`` or raise KeyError."""
         for item in self.languages:
             if item.code == code:
                 return item
@@ -108,6 +122,8 @@ class TTSCapabilities:
 
 @dataclass(frozen=True)
 class AudioChunk:
+    """One tagged PCM fragment. Writers drop chunks whose turn_id is stale."""
+
     pcm: bytes
     sample_rate: int
     turn_id: str
@@ -116,6 +132,7 @@ class AudioChunk:
     flush_reason: str = "clause"
 
     def __post_init__(self) -> None:
+        """Require turn_id, non-negative seq, and a known flush_reason."""
         if not self.turn_id:
             raise ValueError("AudioChunk.turn_id is required (WT-TTS-001)")
         if self.seq < 0:
@@ -126,6 +143,8 @@ class AudioChunk:
 
 @dataclass(frozen=True)
 class SynthesizeRequest:
+    """One synthesis job bound to a session and turn."""
+
     text: str
     turn_id: str
     session_id: str
@@ -134,6 +153,7 @@ class SynthesizeRequest:
     seq_start: int = 0
 
     def __post_init__(self) -> None:
+        """Reject cross-session voice handles and French 6l requests."""
         if self.session_id != self.voice.session_id:
             raise ValueError(
                 "SynthesizeRequest.session_id must match VoiceManifest.session_id "
@@ -145,6 +165,8 @@ class SynthesizeRequest:
 
 @runtime_checkable
 class TTSBackend(Protocol):
+    """Blocking TTS backend. Iterate synthesize() only from TTSWorker."""
+
     def capabilities(self) -> TTSCapabilities:
         """Return runtime-probed capabilities."""
 
