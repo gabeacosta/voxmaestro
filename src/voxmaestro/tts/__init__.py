@@ -15,6 +15,7 @@ from voxmaestro.tts.contract import (
     TTSCapabilities,
     VoiceManifest,
 )
+from voxmaestro.tts.pocket import PocketTTSBackend, PocketTTSNotInstalledError, pocket_language
 from voxmaestro.tts.worker import TTSWorker, WriterGate
 
 __all__ = [
@@ -23,10 +24,13 @@ __all__ = [
     "ConsentRecord",
     "LanguageLane",
     "LanguageSupport",
+    "PocketTTSBackend",
+    "PocketTTSNotInstalledError",
     "SynthesizeRequest",
     "TTSBackend",
     "TTSCapabilities",
     "TTSWorker",
     "VoiceManifest",
     "WriterGate",
+    "pocket_language",
 ]
