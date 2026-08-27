@@ -2,6 +2,7 @@
 
 pocket-tts is an optional runtime dependency. Tests inject a fake model so CI
 never loads torch. Capabilities are always advertised_from='runtime-probe'.
+Product languages are English and Spanish only.
 """
 
 from __future__ import annotations
@@ -12,20 +13,20 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 from voxmaestro.tts.contract import (
-    POCKET_TTS_LANGUAGES,
     AudioChunk,
     LanguageLane,
     SynthesizeRequest,
     TTSCapabilities,
     VoiceManifest,
 )
+from voxmaestro.tts.languages import enabled_language_support, require_enabled
 
 _ISO_TO_POCKET = {
     "en": "english",
+    "es": "spanish",
     "de": "german",
     "it": "italian",
     "pt": "portuguese",
-    "es": "spanish",
     "fr": "french_24l",
 }
 
@@ -36,6 +37,7 @@ class PocketTTSNotInstalledError(ImportError):
 
 def pocket_language(code: str, lane: LanguageLane) -> str:
     """Map ISO 639-1 plus lane to a Pocket TTS voice-config name."""
+    require_enabled(code)
     if code == "fr":
         if lane is not LanguageLane.QUALITY:
             raise ValueError("French must use the 24l quality lane")
@@ -103,6 +105,7 @@ class PocketTTSBackend:
         sample_rate: int = 24000,
     ) -> None:
         """Load or inject a model and freeze the probed capability surface."""
+        require_enabled(language)
         self._quantize = quantize
         self._quantization = "int8" if quantize else "fp32"
         self._sample_rate = sample_rate
@@ -118,10 +121,7 @@ class PocketTTSBackend:
             if quantize and "quantize" not in sig.parameters:
                 raise RuntimeError("this pocket-tts build has no load_model(quantize=...)")
             load_kwargs: dict[str, Any] = {
-                "language": pocket_language(
-                    language,
-                    LanguageLane.FAST if language != "fr" else LanguageLane.QUALITY,
-                ),
+                "language": pocket_language(language, LanguageLane.FAST),
             }
             if "quantize" in sig.parameters:
                 load_kwargs["quantize"] = quantize
@@ -146,7 +146,7 @@ class PocketTTSBackend:
             backend_id=self.backend_id,
             backend_version=self._backend_version,
             quantizations=quants,
-            languages=POCKET_TTS_LANGUAGES,
+            languages=enabled_language_support(),
             sample_rates=(self._sample_rate,),
             streaming=streaming,
             voice_state_export=voice_export,
@@ -188,6 +188,7 @@ class PocketTTSBackend:
 
     def synthesize(self, req: SynthesizeRequest) -> Iterator[AudioChunk]:
         """Blocking generator of tagged PCM. Run only from TTSWorker."""
+        require_enabled(req.language)
         with self._lock:
             state = self._sessions.get(req.session_id)
         if state is None:
