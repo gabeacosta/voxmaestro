@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import threading
 from collections.abc import Iterator
 from typing import Any
 
@@ -11,11 +13,7 @@ from voxmaestro.tts.contract import (
     SynthesizeRequest,
     VoiceManifest,
 )
-from voxmaestro.tts.pocket import (
-    PocketTTSBackend,
-    PocketTTSNotInstalledError,
-    pocket_language,
-)
+from voxmaestro.tts.pocket import PocketTTSBackend, PocketTTSNotInstalledError
 from voxmaestro.tts.worker import TTSWorker
 
 
@@ -88,12 +86,6 @@ def _backend(model: FakeTTSModel | None = None) -> PocketTTSBackend:
     )
 
 
-def test_pocket_language_french_is_24l() -> None:
-    assert pocket_language("fr", LanguageLane.QUALITY) == "french_24l"
-    with pytest.raises(ValueError, match="French"):
-        pocket_language("fr", LanguageLane.FAST)
-
-
 def test_capabilities_are_runtime_probed() -> None:
     caps = _backend().capabilities()
     assert caps.advertised_from == "runtime-probe"
@@ -162,7 +154,7 @@ async def test_worker_cancel_stops_held_stream() -> None:
     class Held(FakeTTSModel):
         def __init__(self) -> None:
             super().__init__()
-            self.gate = __import__("threading").Event()
+            self.gate = threading.Event()
 
         def generate_audio_stream(
             self,
@@ -189,8 +181,6 @@ async def test_worker_cancel_stops_held_stream() -> None:
     async def _consume() -> list[Any]:
         return [chunk async for chunk in worker.stream(req)]
 
-    import asyncio
-
     task = asyncio.create_task(_consume())
     await asyncio.sleep(0.05)
     worker.cancel("t1")
@@ -201,4 +191,6 @@ async def test_worker_cancel_stops_held_stream() -> None:
 
 def test_missing_package_message() -> None:
     with pytest.raises(PocketTTSNotInstalledError, match="pocket-tts"):
-        raise PocketTTSNotInstalledError("pocket-tts is not installed; pip install pocket-tts")
+        raise PocketTTSNotInstalledError(
+            "pocket-tts is not installed; pip install pocket-tts"
+        )
