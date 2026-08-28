@@ -14,10 +14,13 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from voxmaestro.runtime import CallSession, VoxMaestroRuntime
+from voxmaestro.tts.contract import AudioChunk, SynthesizeRequest, TTSBackend, VoiceManifest
+from voxmaestro.tts.session import SessionAudio
 
 GenerationAdapter = Callable[
     [str, Mapping[str, Any], Mapping[str, Any]], Awaitable[str]
 ]
+VoiceFor = Callable[[str, Mapping[str, Any]], VoiceManifest]
 
 
 @dataclass
@@ -25,6 +28,9 @@ class _WebSession:
     call: CallSession
     queue: asyncio.Queue[dict[str, Any]]
     lock: asyncio.Lock
+    audio: Optional[SessionAudio] = None
+    voice: Optional[VoiceManifest] = None
+    turn_n: int = 0
 
 
 class WebSessionAdapter:
@@ -34,6 +40,10 @@ class WebSessionAdapter:
     ``greeting``, ``response``, ``booking_confirm``, and ``error``. This v0
     implementation never emits ``booking_confirm`` because a model/tool return is
     not sufficient proof that a consequential booking effect occurred.
+
+    When ``tts_backend`` is set, greeting and final ``response`` text are also
+    spoken through ``SessionAudio``. Audio is additive (``type: audio``) and is
+    not emitted on the text-only path.
     """
 
     def __init__(
@@ -42,10 +52,16 @@ class WebSessionAdapter:
         *,
         generation_adapter: Optional[GenerationAdapter] = None,
         greeting_text: str = "What can I help you with?",
+        tts_backend: Optional[TTSBackend] = None,
+        voice_for: Optional[VoiceFor] = None,
     ):
+        if tts_backend is not None and voice_for is None:
+            raise ValueError("voice_for is required when tts_backend is set")
         self.runtime = runtime
         self.generation_adapter = generation_adapter
         self.greeting_text = greeting_text
+        self.tts_backend = tts_backend
+        self.voice_for = voice_for
         self._sessions: dict[str, _WebSession] = {}
 
     @property
@@ -75,17 +91,32 @@ class WebSessionAdapter:
                     session_id,
                 )
                 return
-            self._start(session_id, message)
+            try:
+                self._start(session_id, message)
+            except Exception as error:
+                yield self._error("tts_bind_failed", str(error), session_id)
+                return
             yield {
                 "type": "greeting",
                 "text": self.greeting_text,
                 "sessionId": session_id,
                 "metadata": {"phase": "started"},
             }
+            session = self._sessions[session_id]
+            async with session.lock:
+                async for event in self._emit_speech(
+                    session_id, session, self.greeting_text, "greeting"
+                ):
+                    yield event
             return
 
         if event_type == "end":
-            self._sessions.pop(session_id, None)
+            session = self._sessions.pop(session_id, None)
+            if session is not None:
+                if session.audio is not None:
+                    session.audio.flush()
+                if self.tts_backend is not None:
+                    self.tts_backend.close_session(session_id)
             return
 
         if event_type != "message":
@@ -110,8 +141,14 @@ class WebSessionAdapter:
             yield self._error("empty_message", "Message text is required", session_id)
             return
 
+        session.turn_n += 1
+        turn_id = f"t{session.turn_n}"
+        if session.audio is not None:
+            session.audio.barge_in(turn_id)
         async with session.lock:
-            async for event in self._process_message(session_id, session, text):
+            async for event in self._process_message(
+                session_id, session, text, turn_id
+            ):
                 yield event
 
     def _start(self, session_id: str, message: Mapping[str, Any]) -> None:
@@ -135,10 +172,22 @@ class WebSessionAdapter:
             on_transfer=on_transfer,
             **metadata,
         )
+        voice: Optional[VoiceManifest] = None
+        audio: Optional[SessionAudio] = None
+        if self.tts_backend is not None and self.voice_for is not None:
+            voice = self.voice_for(session_id, message)
+            self.tts_backend.open_session(session_id, voice)
+
+            def send(chunk: AudioChunk) -> None:
+                queue.put_nowait({"kind": "audio", "payload": chunk})
+
+            audio = SessionAudio(self.tts_backend, send)
         self._sessions[session_id] = _WebSession(
             call=call,
             queue=queue,
             lock=asyncio.Lock(),
+            audio=audio,
+            voice=voice,
         )
 
     async def _process_message(
@@ -146,6 +195,7 @@ class WebSessionAdapter:
         session_id: str,
         session: _WebSession,
         text: str,
+        turn_id: str,
     ) -> AsyncIterator[dict[str, Any]]:
         turn_task = asyncio.create_task(session.call.process_turn(text))
         queue_task: Optional[asyncio.Task[dict[str, Any]]] = asyncio.create_task(
@@ -179,14 +229,35 @@ class WebSessionAdapter:
             if event is not None:
                 yield event
 
-        async for event in self._final_events(session_id, session, text, result):
+        async for event in self._final_events(
+            session_id, session, text, result, turn_id
+        ):
             yield event
 
     @staticmethod
     def _map_internal_event(
         session_id: str, internal: Mapping[str, Any]
     ) -> Optional[dict[str, Any]]:
-        if internal.get("kind") != "filler":
+        kind = internal.get("kind")
+        if kind == "audio":
+            chunk = internal.get("payload")
+            if chunk is None:
+                return None
+            return {
+                "type": "audio",
+                "sessionId": session_id,
+                "pcm": chunk.pcm,
+                "sampleRate": chunk.sample_rate,
+                "turnId": chunk.turn_id,
+                "seq": chunk.seq,
+                "isLast": chunk.is_last,
+                "metadata": {
+                    "phase": "tts",
+                    "flushReason": chunk.flush_reason,
+                    "final": chunk.is_last,
+                },
+            }
+        if kind != "filler":
             return None
         filler = internal.get("payload") or {}
         text = str(filler.get("text") or "").strip()
@@ -199,12 +270,42 @@ class WebSessionAdapter:
             "metadata": {"phase": "filler", "final": False},
         }
 
+    async def _emit_speech(
+        self,
+        session_id: str,
+        session: _WebSession,
+        text: str,
+        turn_id: str,
+    ) -> AsyncIterator[dict[str, Any]]:
+        if session.audio is None or session.voice is None:
+            return
+        spoken = str(text or "").strip()
+        if not spoken:
+            return
+        req = SynthesizeRequest(
+            text=spoken,
+            turn_id=turn_id,
+            session_id=session_id,
+            voice=session.voice,
+            language=session.voice.language,
+        )
+        try:
+            await session.audio.speak(req)
+        except Exception as error:
+            yield self._error("tts_failed", str(error), session_id)
+            return
+        while not session.queue.empty():
+            event = self._map_internal_event(session_id, session.queue.get_nowait())
+            if event is not None:
+                yield event
+
     async def _final_events(
         self,
         session_id: str,
         session: _WebSession,
         caller_text: str,
         result: Mapping[str, Any],
+        turn_id: str,
     ) -> AsyncIterator[dict[str, Any]]:
         if result.get("action") == "ignored":
             yield self._error(
@@ -234,9 +335,10 @@ class WebSessionAdapter:
                 if delivered
                 else "I couldn't complete that here, and the automatic handoff was not delivered."
             )
+            text = result.get("response_text") or fallback
             yield {
                 "type": "response",
-                "text": result.get("response_text") or fallback,
+                "text": text,
                 "sessionId": session_id,
                 "metadata": {
                     "phase": "handoff",
@@ -245,22 +347,29 @@ class WebSessionAdapter:
                     "deliveryStatuses": statuses,
                 },
             }
+            async for event in self._emit_speech(session_id, session, text, turn_id):
+                yield event
             return
 
         if result.get("action") == "exit":
+            text = result.get("response_text") or "Thanks for stopping by."
             yield {
                 "type": "response",
-                "text": result.get("response_text") or "Thanks for stopping by.",
+                "text": text,
                 "sessionId": session_id,
                 "metadata": {"phase": "exit", "final": True},
             }
+            async for event in self._emit_speech(session_id, session, text, turn_id):
+                yield event
             return
 
         if tool_result is not None and not tool_result.success:
+            text = result.get("response_text") or (
+                "I couldn't verify that action, so I won't claim it completed."
+            )
             yield {
                 "type": "response",
-                "text": result.get("response_text")
-                or "I couldn't verify that action, so I won't claim it completed.",
+                "text": text,
                 "sessionId": session_id,
                 "metadata": {
                     "phase": "tool_failure",
@@ -268,6 +377,8 @@ class WebSessionAdapter:
                     "tool": tool_result.tool_name,
                 },
             }
+            async for event in self._emit_speech(session_id, session, text, turn_id):
+                yield event
             return
 
         if self.generation_adapter is None:
@@ -329,6 +440,10 @@ class WebSessionAdapter:
                 "presentationHint": self._presentation_hint(intent),
             },
         }
+        async for event in self._emit_speech(
+            session_id, session, response_text, turn_id
+        ):
+            yield event
 
     @staticmethod
     def _presentation_hint(intent: Optional[str]) -> Optional[str]:
