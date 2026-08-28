@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import threading
+from collections.abc import Iterator
 from copy import deepcopy
 
 import pytest
@@ -8,6 +10,15 @@ import pytest
 from tests.test_runtime_truth import CONFIG
 from voxmaestro import VoxMaestroRuntime
 from voxmaestro.integrations.web_session import WebSessionAdapter
+from voxmaestro.tts.contract import (
+    AudioChunk,
+    ConsentRecord,
+    LanguageLane,
+    SynthesizeRequest,
+    TTSCapabilities,
+    VoiceManifest,
+)
+from voxmaestro.tts.languages import POCKET_TTS_LANGUAGES
 
 
 async def collect(adapter: WebSessionAdapter, message: dict) -> list[dict]:
@@ -195,3 +206,163 @@ async def test_end_removes_session_and_future_messages_fail_closed():
     )
     assert events[-1]["type"] == "error"
     assert events[-1]["metadata"]["code"] == "unknown_session"
+
+
+def _consent() -> ConsentRecord:
+    return ConsentRecord(
+        voice_id="alba",
+        source="kyutai-demo",
+        granted_at="2026-05-04T00:00:00Z",
+        license="demo",
+    )
+
+
+def _voice_for(session_id: str, message: dict) -> VoiceManifest:
+    language = str(message.get("locale") or "en")[:2]
+    return VoiceManifest(
+        voice_id="alba",
+        language=language,
+        lane=LanguageLane.FAST,
+        sample_rate=24000,
+        backend_id="fake",
+        backend_version="test",
+        quantization="int8",
+        consent_record=_consent(),
+        session_id=session_id,
+    )
+
+
+class _FakeBackend:
+    def __init__(self) -> None:
+        self.cancelled: list[str] = []
+        self.opened: list[str] = []
+        self.closed: list[str] = []
+
+    def capabilities(self) -> TTSCapabilities:
+        return TTSCapabilities(
+            backend_id="fake",
+            backend_version="test",
+            quantizations=("int8",),
+            languages=POCKET_TTS_LANGUAGES,
+            sample_rates=(24000,),
+            streaming=True,
+            voice_state_export=True,
+            runtime_memory_bytes={"int8": 1},
+            advertised_from="runtime-probe",
+        )
+
+    def open_session(self, session_id: str, voice: VoiceManifest) -> None:
+        self.opened.append(session_id)
+
+    def close_session(self, session_id: str) -> None:
+        self.closed.append(session_id)
+
+    def synthesize(self, req: SynthesizeRequest) -> Iterator[AudioChunk]:
+        yield AudioChunk(pcm=b"a", sample_rate=24000, turn_id=req.turn_id, seq=0)
+        yield AudioChunk(
+            pcm=b"b",
+            sample_rate=24000,
+            turn_id=req.turn_id,
+            seq=1,
+            is_last=True,
+            flush_reason="end",
+        )
+
+    def cancel(self, turn_id: str) -> None:
+        self.cancelled.append(turn_id)
+
+
+class _HeldBackend(_FakeBackend):
+    def __init__(self) -> None:
+        super().__init__()
+        self.release = threading.Event()
+        self.started = threading.Event()
+
+    def synthesize(self, req: SynthesizeRequest) -> Iterator[AudioChunk]:
+        self.started.set()
+        self.release.wait(timeout=1.0)
+        yield AudioChunk(
+            pcm=b"late",
+            sample_rate=24000,
+            turn_id=req.turn_id,
+            seq=0,
+            is_last=True,
+            flush_reason="end",
+        )
+
+    def cancel(self, turn_id: str) -> None:
+        super().cancel(turn_id)
+        self.release.set()
+
+
+@pytest.mark.asyncio
+async def test_tts_backend_speaks_greeting_and_final_response():
+    backend = _FakeBackend()
+    runtime = VoxMaestroRuntime(deepcopy(CONFIG))
+    adapter = WebSessionAdapter(
+        runtime,
+        generation_adapter=generate,
+        tts_backend=backend,
+        voice_for=_voice_for,
+    )
+
+    start_events = await collect(
+        adapter, {"type": "start", "sessionId": "voice", "locale": "en"}
+    )
+    assert start_events[0]["type"] == "greeting"
+    audio = [event for event in start_events if event["type"] == "audio"]
+    assert [event["pcm"] for event in audio] == [b"a", b"b"]
+    assert audio[-1]["turnId"] == "greeting"
+    assert audio[-1]["isLast"] is True
+    assert backend.opened == ["voice"]
+
+    events = await collect(
+        adapter, {"type": "message", "sessionId": "voice", "text": "Hello"}
+    )
+    assert events[0]["type"] == "response"
+    spoken = [event for event in events if event["type"] == "audio"]
+    assert spoken[-1]["turnId"] == "t1"
+    assert spoken[-1]["pcm"] == b"b"
+    assert "model" not in events[-1]
+
+
+@pytest.mark.asyncio
+async def test_message_barges_in_on_in_flight_greeting_tts():
+    backend = _HeldBackend()
+    runtime = VoxMaestroRuntime(deepcopy(CONFIG))
+    adapter = WebSessionAdapter(
+        runtime,
+        generation_adapter=generate,
+        tts_backend=backend,
+        voice_for=_voice_for,
+    )
+
+    start_task = asyncio.create_task(
+        collect(adapter, {"type": "start", "sessionId": "barge", "locale": "en"})
+    )
+    await asyncio.sleep(0.05)
+    assert backend.started.is_set()
+    message_task = asyncio.create_task(
+        collect(adapter, {"type": "message", "sessionId": "barge", "text": "Hello"})
+    )
+    start_events, message_events = await asyncio.gather(start_task, message_task)
+
+    assert start_events[0]["type"] == "greeting"
+    assert "greeting" in backend.cancelled
+    assert any(event["type"] == "response" for event in message_events)
+
+
+@pytest.mark.asyncio
+async def test_end_flushes_tts_and_closes_backend_session():
+    backend = _FakeBackend()
+    runtime = VoxMaestroRuntime(deepcopy(CONFIG))
+    adapter = WebSessionAdapter(
+        runtime,
+        generation_adapter=generate,
+        tts_backend=backend,
+        voice_for=_voice_for,
+    )
+    await collect(adapter, {"type": "start", "sessionId": "done", "locale": "en"})
+    await collect(adapter, {"type": "end", "sessionId": "done"})
+    assert backend.closed == ["done"]
+    assert adapter.context_for("done") is None
