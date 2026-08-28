@@ -18,6 +18,7 @@ from voxmaestro.tts.contract import (
 from voxmaestro.tts.languages import ENABLED_LANGUAGES, enabled_language_support, require_enabled
 from voxmaestro.tts.pocket import PocketTTSBackend, PocketTTSNotInstalledError, pocket_language
 from voxmaestro.tts.worker import TTSWorker, WriterGate
+from voxmaestro.tts.writer import TurnWriter
 
 __all__ = [
     "ENABLED_LANGUAGES",
@@ -32,6 +33,7 @@ __all__ = [
     "TTSBackend",
     "TTSCapabilities",
     "TTSWorker",
+    "TurnWriter",
     "VoiceManifest",
     "WriterGate",
     "enabled_language_support",
