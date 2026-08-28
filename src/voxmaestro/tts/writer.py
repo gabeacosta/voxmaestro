@@ -9,7 +9,7 @@ clears current_turn so in-flight chunks die here too.
 from __future__ import annotations
 
 import inspect
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from typing import Any
 
 from voxmaestro.tts.contract import AudioChunk
