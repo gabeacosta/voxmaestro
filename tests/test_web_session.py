@@ -366,3 +366,104 @@ async def test_end_flushes_tts_and_closes_backend_session():
     await collect(adapter, {"type": "end", "sessionId": "done"})
     assert backend.closed == ["done"]
     assert adapter.context_for("done") is None
+
+
+@pytest.mark.asyncio
+async def test_filler_is_spoken_during_slow_tool():
+    tool_started = asyncio.Event()
+    release_tool = asyncio.Event()
+
+    async def execute_tool(tool_name, tool, params, context):
+        tool_started.set()
+        await release_tool.wait()
+        return {"available": True}
+
+    async def classify(text, context):
+        return "schedule_appointment"
+
+    backend = _FakeBackend()
+    runtime = VoxMaestroRuntime(
+        deepcopy(CONFIG),
+        tool_executor=execute_tool,
+        intent_classifier=classify,
+    )
+    adapter = WebSessionAdapter(
+        runtime,
+        generation_adapter=generate,
+        tts_backend=backend,
+        voice_for=_voice_for,
+    )
+    await collect(
+        adapter, {"type": "start", "sessionId": "spoken-filler", "locale": "en"}
+    )
+    adapter.context_for("spoken-filler").current_state = "qualification"
+
+    events = adapter.iter_events(
+        {
+            "type": "message",
+            "sessionId": "spoken-filler",
+            "text": "Thursday at three",
+        }
+    )
+    first = await asyncio.wait_for(anext(events), timeout=0.5)
+    assert first["type"] == "response"
+    assert first["metadata"]["phase"] == "filler"
+    assert tool_started.is_set()
+    assert not release_tool.is_set()
+
+    filler_audio = await asyncio.wait_for(anext(events), timeout=0.5)
+    assert filler_audio["type"] == "audio"
+    assert filler_audio["turnId"] == "t1-f1"
+    filler_tail = await asyncio.wait_for(anext(events), timeout=0.5)
+    assert filler_tail["type"] == "audio"
+    assert filler_tail["turnId"] == "t1-f1"
+    assert filler_tail["isLast"] is True
+
+    release_tool.set()
+    remaining = [event async for event in events]
+    final = next(
+        event
+        for event in remaining
+        if event["type"] == "response" and event["metadata"].get("final")
+    )
+    assert final is not None
+    final_audio = [
+        event
+        for event in remaining
+        if event["type"] == "audio" and event["turnId"] == "t1"
+    ]
+    assert final_audio
+    assert final_audio[-1]["isLast"] is True
+
+
+@pytest.mark.asyncio
+async def test_metrics_cover_barge_silence_and_speech():
+    observed: list[tuple[str, float]] = []
+    backend = _HeldBackend()
+    runtime = VoxMaestroRuntime(deepcopy(CONFIG))
+    adapter = WebSessionAdapter(
+        runtime,
+        generation_adapter=generate,
+        tts_backend=backend,
+        voice_for=_voice_for,
+        observe=lambda name, value: observed.append((name, value)),
+    )
+
+    start_task = asyncio.create_task(
+        collect(adapter, {"type": "start", "sessionId": "metrics", "locale": "en"})
+    )
+    await asyncio.sleep(0.05)
+    assert backend.started.is_set()
+    message_events = await collect(
+        adapter, {"type": "message", "sessionId": "metrics", "text": "Hello"}
+    )
+    await start_task
+
+    names = [name for name, _ in observed]
+    assert "tts.barge_in" in names
+    assert "tts.cancel_to_silence_ms" in names
+    assert "tts.speak_ms" in names
+    assert "tts.chunks_emitted" in names
+    silence = dict(observed)["tts.cancel_to_silence_ms"]
+    assert silence >= 0
+    assert any(event["type"] == "response" for event in message_events)

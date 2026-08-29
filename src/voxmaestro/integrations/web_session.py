@@ -21,6 +21,7 @@ GenerationAdapter = Callable[
     [str, Mapping[str, Any], Mapping[str, Any]], Awaitable[str]
 ]
 VoiceFor = Callable[[str, Mapping[str, Any]], VoiceManifest]
+ObserveFn = Callable[[str, float], Any]
 
 
 @dataclass
@@ -31,6 +32,7 @@ class _WebSession:
     audio: Optional[SessionAudio] = None
     voice: Optional[VoiceManifest] = None
     turn_n: int = 0
+    filler_n: int = 0
 
 
 class WebSessionAdapter:
@@ -41,9 +43,12 @@ class WebSessionAdapter:
     implementation never emits ``booking_confirm`` because a model/tool return is
     not sufficient proof that a consequential booking effect occurred.
 
-    When ``tts_backend`` is set, greeting and final ``response`` text are also
-    spoken through ``SessionAudio``. Audio is additive (``type: audio``) and is
-    not emitted on the text-only path.
+    When ``tts_backend`` is set, greeting, tool filler, and final ``response``
+    text are also spoken through ``SessionAudio``. Audio is additive
+    (``type: audio``) and is not emitted on the text-only path. Pass ``observe``
+    to collect WT-TTS-001 metrics (``tts.speak_ms``, ``tts.chunks_emitted``,
+    ``tts.chunks_dropped_stale_turn``, ``tts.barge_in``,
+    ``tts.cancel_to_silence_ms``).
     """
 
     def __init__(
@@ -54,6 +59,7 @@ class WebSessionAdapter:
         greeting_text: str = "What can I help you with?",
         tts_backend: Optional[TTSBackend] = None,
         voice_for: Optional[VoiceFor] = None,
+        observe: Optional[ObserveFn] = None,
     ):
         if tts_backend is not None and voice_for is None:
             raise ValueError("voice_for is required when tts_backend is set")
@@ -62,6 +68,7 @@ class WebSessionAdapter:
         self.greeting_text = greeting_text
         self.tts_backend = tts_backend
         self.voice_for = voice_for
+        self.observe = observe
         self._sessions: dict[str, _WebSession] = {}
 
     @property
@@ -145,6 +152,8 @@ class WebSessionAdapter:
         turn_id = f"t{session.turn_n}"
         if session.audio is not None:
             session.audio.barge_in(turn_id)
+            if self.observe is not None:
+                self.observe("tts.barge_in", 1.0)
         async with session.lock:
             async for event in self._process_message(
                 session_id, session, text, turn_id
@@ -181,7 +190,7 @@ class WebSessionAdapter:
             def send(chunk: AudioChunk) -> None:
                 queue.put_nowait({"kind": "audio", "payload": chunk})
 
-            audio = SessionAudio(self.tts_backend, send)
+            audio = SessionAudio(self.tts_backend, send, observe=self.observe)
         self._sessions[session_id] = _WebSession(
             call=call,
             queue=queue,
@@ -213,6 +222,16 @@ class WebSessionAdapter:
                 event = self._map_internal_event(session_id, internal)
                 if event is not None:
                     yield event
+                    if (
+                        event["type"] == "response"
+                        and event["metadata"].get("phase") == "filler"
+                    ):
+                        session.filler_n += 1
+                        filler_turn = f"{turn_id}-f{session.filler_n}"
+                        async for audio_event in self._emit_speech(
+                            session_id, session, event["text"], filler_turn
+                        ):
+                            yield audio_event
                 queue_task = (
                     None if turn_task.done() else asyncio.create_task(session.queue.get())
                 )
@@ -289,11 +308,19 @@ class WebSessionAdapter:
             voice=session.voice,
             language=session.voice.language,
         )
+        dropped_before = session.audio.writer.chunks_dropped_stale_turn
+        started = time.monotonic()
         try:
-            await session.audio.speak(req)
+            emitted = await session.audio.speak(req)
         except Exception as error:
             yield self._error("tts_failed", str(error), session_id)
             return
+        if self.observe is not None:
+            self.observe("tts.speak_ms", (time.monotonic() - started) * 1000)
+            self.observe("tts.chunks_emitted", float(emitted))
+            dropped = session.audio.writer.chunks_dropped_stale_turn - dropped_before
+            if dropped:
+                self.observe("tts.chunks_dropped_stale_turn", float(dropped))
         while not session.queue.empty():
             event = self._map_internal_event(session_id, session.queue.get_nowait())
             if event is not None:
