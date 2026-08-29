@@ -135,3 +135,33 @@ async def test_barge_in_cancels_old_turn() -> None:
     assert sent == []
     assert "t1" in backend.cancelled
     assert audio.writer.current_turn == "t2"
+
+
+@pytest.mark.asyncio
+async def test_barge_in_records_cancel_to_silence_metric() -> None:
+    import asyncio
+
+    observed: list[tuple[str, float]] = []
+    backend = _HeldBackend()
+    audio = SessionAudio(
+        backend,
+        lambda chunk: None,
+        observe=lambda name, value: observed.append((name, value)),
+    )
+    task = asyncio.create_task(audio.speak(_req("t1")))
+    await asyncio.sleep(0.05)
+    audio.barge_in("t2")
+    await task
+    assert audio.last_cancel_to_silence_ms is not None
+    assert audio.last_cancel_to_silence_ms >= 0
+    assert [name for name, _ in observed] == ["tts.cancel_to_silence_ms"]
+
+
+@pytest.mark.asyncio
+async def test_barge_after_turn_completes_records_no_metric() -> None:
+    backend = _FakeBackend()
+    audio = SessionAudio(backend, lambda chunk: None)
+    await audio.speak(_req("t1"))
+    audio.barge_in("t2")
+    assert audio.last_cancel_to_silence_ms is None
+    assert "t1" in backend.cancelled
