@@ -1,0 +1,20 @@
+name: wt-corpus
+
+on:
+  workflow_dispatch:
+
+jobs:
+  record:
+    # Needs a runner with pocket-tts + torch (e.g. the Mac mini voice host).
+    runs-on: [self-hosted, voice]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e . pocket-tts pyyaml
+      - run: python examples/record_wt_corpus.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: golden-corpus
+          path: golden/
