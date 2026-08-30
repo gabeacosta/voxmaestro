@@ -1,0 +1,57 @@
+# WT-TTS-003 pinned golden-audio corpus (v1)
+# Record with examples/record_wt_corpus.py on a machine with pocket-tts.
+# Output: golden/<voice>/<language>/<id>.wav plus golden/manifest.sha256.json.
+# The WER/MCD comparison gate lands with a real ASR backend; until then this
+# corpus only freezes WHAT must be compared, not the comparison itself.
+version: 1
+sample_rate: 24000
+voice: alba
+utterances:
+  - id: en-fill-01
+    language: en
+    purpose: filler
+    text: "Let me check that."
+  - id: en-clause-01
+    language: en
+    purpose: clause_boundary
+    text: "Thanks for calling Rivera Plumbing, this is Alma speaking."
+  - id: en-clause-02
+    language: en
+    purpose: clause_boundary
+    text: "I can check Thursday afternoon, or Friday morning if that is easier."
+  - id: en-num-01
+    language: en
+    purpose: numbers_times
+    text: "Your appointment is Thursday at three thirty."
+  - id: en-q-01
+    language: en
+    purpose: question_prosody
+    text: "Do you have anything available this week?"
+  - id: en-name-01
+    language: en
+    purpose: spelling
+    text: "Juan Gabriel Acosta, A-C-O-S-T-A."
+  - id: es-fill-01
+    language: es
+    purpose: filler
+    text: "Déjame revisar."
+  - id: es-clause-01
+    language: es
+    purpose: clause_boundary
+    text: "Gracias por llamar a Plomería Rivera, le atiende Alma."
+  - id: es-clause-02
+    language: es
+    purpose: clause_boundary
+    text: "Puedo revisar el jueves por la tarde, o el viernes por la mañana."
+  - id: es-num-01
+    language: es
+    purpose: numbers_times
+    text: "Su cita es el jueves a las tres y media."
+  - id: es-q-01
+    language: es
+    purpose: question_prosody
+    text: "¿Tiene algo disponible esta semana?"
+  - id: es-name-01
+    language: es
+    purpose: spelling
+    text: "Juan Gabriel Acosta, A, C, O, S, T, A."
