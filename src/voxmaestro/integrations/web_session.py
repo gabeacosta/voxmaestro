@@ -15,11 +15,9 @@ from typing import Any, Optional
 
 from voxmaestro.runtime import CallSession, VoxMaestroRuntime
 from voxmaestro.tts.contract import AudioChunk, SynthesizeRequest, TTSBackend, VoiceManifest
-from voxmaestro.tts.session import SessionAudio
+from voxmaestro.tts.session import SessionAudio, safe_observe
 
-GenerationAdapter = Callable[
-    [str, Mapping[str, Any], Mapping[str, Any]], Awaitable[str]
-]
+GenerationAdapter = Callable[[str, Mapping[str, Any], Mapping[str, Any]], Awaitable[str]]
 VoiceFor = Callable[[str, Mapping[str, Any]], VoiceManifest]
 ObserveFn = Callable[[str, float], Any]
 
@@ -68,7 +66,7 @@ class WebSessionAdapter:
         self.greeting_text = greeting_text
         self.tts_backend = tts_backend
         self.voice_for = voice_for
-        self.observe = observe
+        self.observe = safe_observe(observe)
         self._sessions: dict[str, _WebSession] = {}
 
     @property
@@ -79,9 +77,7 @@ class WebSessionAdapter:
         session = self._sessions.get(session_id)
         return session.call.context if session else None
 
-    async def iter_events(
-        self, message: Mapping[str, Any]
-    ) -> AsyncIterator[dict[str, Any]]:
+    async def iter_events(self, message: Mapping[str, Any]) -> AsyncIterator[dict[str, Any]]:
         """Consume one normalized browser event and yield client events."""
         event_type = message.get("type")
         session_id = str(message.get("sessionId") or "").strip()
@@ -151,13 +147,10 @@ class WebSessionAdapter:
         session.turn_n += 1
         turn_id = f"t{session.turn_n}"
         if session.audio is not None:
-            session.audio.barge_in(turn_id)
-            if self.observe is not None:
+            if session.audio.barge_in(turn_id):
                 self.observe("tts.barge_in", 1.0)
         async with session.lock:
-            async for event in self._process_message(
-                session_id, session, text, turn_id
-            ):
+            async for event in self._process_message(session_id, session, text, turn_id):
                 yield event
 
     def _start(self, session_id: str, message: Mapping[str, Any]) -> None:
@@ -210,11 +203,14 @@ class WebSessionAdapter:
         queue_task: Optional[asyncio.Task[dict[str, Any]]] = asyncio.create_task(
             session.queue.get()
         )
+        filler_task: Optional[asyncio.Task[int]] = None
 
         while True:
             wait_set: set[asyncio.Task[Any]] = {turn_task}
             if queue_task is not None:
                 wait_set.add(queue_task)
+            if filler_task is not None and not filler_task.done():
+                wait_set.add(filler_task)
             done, _ = await asyncio.wait(wait_set, return_when=asyncio.FIRST_COMPLETED)
 
             if queue_task is not None and queue_task in done:
@@ -224,20 +220,29 @@ class WebSessionAdapter:
                     yield event
                     if (
                         event["type"] == "response"
-                        and event["metadata"].get("phase") == "filler"
+                        and (event.get("metadata") or {}).get("phase") == "filler"
                     ):
                         session.filler_n += 1
                         filler_turn = f"{turn_id}-f{session.filler_n}"
-                        async for audio_event in self._emit_speech(
-                            session_id, session, event["text"], filler_turn
-                        ):
-                            yield audio_event
-                queue_task = (
-                    None if turn_task.done() else asyncio.create_task(session.queue.get())
-                )
+                        if session.audio is not None and session.voice is not None:
+                            filler_task = asyncio.create_task(
+                                session.audio.speak(
+                                    SynthesizeRequest(
+                                        text=event["text"],
+                                        turn_id=filler_turn,
+                                        session_id=session_id,
+                                        voice=session.voice,
+                                        language=session.voice.language,
+                                    )
+                                )
+                            )
+                queue_task = None if turn_task.done() else asyncio.create_task(session.queue.get())
 
             if turn_task in done:
                 result = turn_task.result()
+                if filler_task is not None and not filler_task.done() and session.audio is not None:
+                    session.audio.barge_in(turn_id)
+                    await filler_task
                 if queue_task is not None and not queue_task.done():
                     queue_task.cancel()
                     await asyncio.gather(queue_task, return_exceptions=True)
@@ -248,9 +253,7 @@ class WebSessionAdapter:
             if event is not None:
                 yield event
 
-        async for event in self._final_events(
-            session_id, session, text, result, turn_id
-        ):
+        async for event in self._final_events(session_id, session, text, result, turn_id):
             yield event
 
     @staticmethod
@@ -308,19 +311,18 @@ class WebSessionAdapter:
             voice=session.voice,
             language=session.voice.language,
         )
-        dropped_before = session.audio.writer.chunks_dropped_stale_turn
         started = time.monotonic()
         try:
             emitted = await session.audio.speak(req)
         except Exception as error:
+            self.observe("tts.errors", 1.0)
             yield self._error("tts_failed", str(error), session_id)
             return
-        if self.observe is not None:
-            self.observe("tts.speak_ms", (time.monotonic() - started) * 1000)
-            self.observe("tts.chunks_emitted", float(emitted))
-            dropped = session.audio.writer.chunks_dropped_stale_turn - dropped_before
-            if dropped:
-                self.observe("tts.chunks_dropped_stale_turn", float(dropped))
+        self.observe("tts.speak_ms", (time.monotonic() - started) * 1000)
+        self.observe("tts.chunks_emitted", float(emitted))
+        dropped = session.audio.writer.dropped_for(turn_id)
+        if dropped:
+            self.observe("tts.chunks_dropped_stale_turn", float(dropped))
         while not session.queue.empty():
             event = self._map_internal_event(session_id, session.queue.get_nowait())
             if event is not None:
@@ -451,9 +453,7 @@ class WebSessionAdapter:
             }
         )
         intent = (
-            session.call.context.intent_history[-1]
-            if session.call.context.intent_history
-            else None
+            session.call.context.intent_history[-1] if session.call.context.intent_history else None
         )
         yield {
             "type": "response",
@@ -467,9 +467,7 @@ class WebSessionAdapter:
                 "presentationHint": self._presentation_hint(intent),
             },
         }
-        async for event in self._emit_speech(
-            session_id, session, response_text, turn_id
-        ):
+        async for event in self._emit_speech(session_id, session, response_text, turn_id):
             yield event
 
     @staticmethod

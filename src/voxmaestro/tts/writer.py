@@ -28,6 +28,11 @@ class TurnWriter:
         self.gate = WriterGate(lambda: self._current)
         self.chunks_emitted = 0
         self.chunks_dropped_stale_turn = 0
+        self._dropped_by_turn: dict[str, int] = {}
+
+    def dropped_for(self, turn_id: str) -> int:
+        """Return stale chunks rejected for one originating turn."""
+        return self._dropped_by_turn.get(turn_id, 0)
 
     @property
     def current_turn(self) -> str | None:
@@ -52,6 +57,7 @@ class TurnWriter:
         """Send chunk if it matches current_turn. Return True if emitted."""
         if not self.gate.accept(chunk):
             self.chunks_dropped_stale_turn += 1
+            self._dropped_by_turn[chunk.turn_id] = self.dropped_for(chunk.turn_id) + 1
             return False
         result = self._send(chunk)
         if inspect.isawaitable(result):

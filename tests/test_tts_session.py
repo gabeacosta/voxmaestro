@@ -158,6 +158,27 @@ async def test_barge_in_records_cancel_to_silence_metric() -> None:
 
 
 @pytest.mark.asyncio
+async def test_raising_observer_never_breaks_speech_or_cancel_metric() -> None:
+    import asyncio
+
+    backend = _HeldBackend()
+    audio = SessionAudio(backend, lambda chunk: None, observe=lambda *_: (_ for _ in ()).throw(RuntimeError("metrics down")))
+    task = asyncio.create_task(audio.speak(_req("t1")))
+    await asyncio.sleep(0.05)
+    assert audio.barge_in("t2") is True
+    assert await task == 0
+    assert audio.last_cancel_to_silence_ms is not None
+
+
+@pytest.mark.asyncio
+async def test_speak_records_first_chunk_latency() -> None:
+    observed: list[str] = []
+    audio = SessionAudio(_FakeBackend(), lambda chunk: None, observe=lambda name, _: observed.append(name))
+    await audio.speak(_req())
+    assert "tts.first_chunk_ms" in observed
+
+
+@pytest.mark.asyncio
 async def test_barge_after_turn_completes_records_no_metric() -> None:
     backend = _FakeBackend()
     audio = SessionAudio(backend, lambda chunk: None)

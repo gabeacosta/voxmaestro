@@ -465,5 +465,15 @@ async def test_metrics_cover_barge_silence_and_speech():
     assert "tts.speak_ms" in names
     assert "tts.chunks_emitted" in names
     silence = dict(observed)["tts.cancel_to_silence_ms"]
-    assert silence >= 0
+    assert 0 <= silence < 1_000
     assert any(event["type"] == "response" for event in message_events)
+
+
+@pytest.mark.asyncio
+async def test_audio_configured_without_active_speech_is_not_a_barge_in():
+    observed: list[tuple[str, float]] = []
+    backend = _FakeBackend()
+    adapter = WebSessionAdapter(VoxMaestroRuntime(deepcopy(CONFIG)), generation_adapter=generate, tts_backend=backend, voice_for=_voice_for, observe=lambda name, value: observed.append((name, value)))
+    await collect(adapter, {"type": "start", "sessionId": "quiet", "locale": "en"})
+    await collect(adapter, {"type": "message", "sessionId": "quiet", "text": "Hello"})
+    assert "tts.barge_in" not in [name for name, _ in observed]
