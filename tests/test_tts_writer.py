@@ -32,6 +32,8 @@ async def test_barge_in_drops_old_turn() -> None:
     assert await writer.write(_chunk("t2")) is True
     assert sent == ["t1", "t2"]
     assert writer.chunks_dropped_stale_turn == 1
+    assert writer.dropped_for("t1") == 1
+    assert writer.dropped_for("t2") == 0
     assert writer.current_turn == "t2"
 
 

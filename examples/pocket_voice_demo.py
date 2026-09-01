@@ -104,10 +104,13 @@ async def main() -> int:
         observe=lambda name, value: metrics.append((name, value)),
     )
     session_id = "demo"
+    greeting_audio_started = asyncio.Event()
 
     async def run(message: dict) -> None:
         async for event in adapter.iter_events(message):
             if event["type"] == "audio":
+                if event["turnId"] == "greeting":
+                    greeting_audio_started.set()
                 path = OUT_DIR / f"{session_id}-{event['turnId']}.pcm"
                 with path.open("ab") as handle:
                     handle.write(event["pcm"])
@@ -124,7 +127,7 @@ async def main() -> int:
             }
         )
     )
-    await asyncio.sleep(0.3)  # greeting is mid-stream; the message barges in
+    await asyncio.wait_for(greeting_audio_started.wait(), timeout=30)
     await run(
         {
             "type": "message",
