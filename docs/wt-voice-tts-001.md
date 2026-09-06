@@ -15,6 +15,8 @@ The measured system under test may be Pocket TTS official, Pocket TTS quantized,
 3. Missing or incomplete evidence produces `TEST_INVALID`, never `PASS` or an inferred `FAIL`.
 4. Promotion thresholds are explicit data, not backend-specific branches.
 5. A backend must pass independently; one lane cannot borrow evidence from another.
+6. Measurement code cannot redefine promotion thresholds or verdict semantics.
+7. Realtime factor must use an explicit rendered-audio duration source; raw PCM byte length is not sufficient evidence because the frozen `AudioChunk` contract does not declare sample width or encoding.
 
 ## Default promotion policy
 
@@ -66,9 +68,22 @@ Recommended matrix for Mac mini qualification:
 `TEST_INVALID`
 : Required evidence is missing or incomplete. Invalid evidence is never interpreted as system failure or success.
 
-## Usage
+## Measurement path
 
-Measurement code should emit one `TTSLaneResult` per lane, then call `qualify_tts_lane`.
+`voxmaestro.tts.measurement.measure_request` executes the frozen `TTSBackend` contract through the real `TTSWorker` thread bridge. It records first-chunk latency, total synthesis time, cancellation-to-silence time, and any chunks that survive cancellation.
+
+The caller must provide `audio_duration_s` from an explicit backend-aware decoder, a reference WAV, or another independently known source. The runner does not infer duration from `len(chunk.pcm)`.
+
+`aggregate_lane` converts raw `TTSRunObservation` records into one `TTSLaneResult`. The result is then passed to `qualify_tts_lane`.
+
+```text
+backend execution
+    -> TTSRunObservation[]
+    -> aggregate_lane
+    -> TTSLaneResult
+    -> qualify_tts_lane
+    -> PASS / FAIL / TEST_INVALID
+```
 
 The adjudicator does not import Pocket TTS, MLX, Torch, ONNX, or browser dependencies. That boundary is intentional: measurement adapters may change while the promotion decision remains deterministic and independently testable.
 
