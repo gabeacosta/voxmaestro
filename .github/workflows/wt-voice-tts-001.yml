@@ -12,11 +12,16 @@ on:
         required: true
         type: boolean
         default: true
+  push:
+    branches: [main]
+    paths:
+      - ".github/wt-voice-tts-001.trigger"
 
 jobs:
   qualify:
-    # Existing voice-host runner lane. This job is manual because it loads real
-    # Pocket TTS weights and measures host-specific performance.
+    # Existing voice-host runner lane. The scoped push trigger exists only to
+    # launch a bounded hardware qualification from environments without
+    # workflow_dispatch support. Ordinary pushes do not run this job.
     runs-on: [self-hosted, voice]
     timeout-minutes: 120
     steps:
@@ -38,8 +43,8 @@ jobs:
           } > evidence/wt-voice-tts-001/host.txt
       - name: Run qualification matrix
         env:
-          RUNS: ${{ inputs.runs }}
-          FULL_MATRIX: ${{ inputs.full_matrix }}
+          RUNS: ${{ inputs.runs || '3' }}
+          FULL_MATRIX: ${{ inputs.full_matrix || 'true' }}
         run: |
           set -euo pipefail
           if [ "$FULL_MATRIX" = "true" ]; then
