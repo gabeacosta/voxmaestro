@@ -1,0 +1,63 @@
+name: wt-voice-tts-001
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: Successful measurement repetitions per lane
+        required: true
+        default: "3"
+      full_matrix:
+        description: Run EN/ES x FP32/int8 x 1/2/4/8 sessions
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  qualify:
+    # Existing voice-host runner lane. This job is manual because it loads real
+    # Pocket TTS weights and measures host-specific performance.
+    runs-on: [self-hosted, voice]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install benchmark runtime
+        run: pip install -e . pocket-tts pyyaml
+      - name: Record host identity
+        run: |
+          mkdir -p evidence/wt-voice-tts-001
+          {
+            echo "commit=${GITHUB_SHA}"
+            echo "runner=${RUNNER_NAME}"
+            uname -a
+            python --version
+            python -c 'import platform; print(platform.platform()); print(platform.machine())'
+          } > evidence/wt-voice-tts-001/host.txt
+      - name: Run qualification matrix
+        env:
+          RUNS: ${{ inputs.runs }}
+          FULL_MATRIX: ${{ inputs.full_matrix }}
+        run: |
+          set -euo pipefail
+          if [ "$FULL_MATRIX" = "true" ]; then
+            for language in en es; do
+              for sessions in 1 2 4 8; do
+                python examples/run_wt_voice_tts_001.py \
+                  --language "$language" --sessions "$sessions" --runs "$RUNS"
+                python examples/run_wt_voice_tts_001.py \
+                  --language "$language" --sessions "$sessions" --runs "$RUNS" --quantize
+              done
+            done
+          else
+            python examples/run_wt_voice_tts_001.py --language en --sessions 1 --runs "$RUNS" --quantize
+          fi
+      - name: Upload raw qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wt-voice-tts-001-${{ github.sha }}
+          path: evidence/wt-voice-tts-001/
+          if-no-files-found: error
