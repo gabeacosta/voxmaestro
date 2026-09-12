@@ -8,6 +8,28 @@ YAML state machines · tool bridges · filler gates · handoff protocol · runti
 
 </div>
 
+[![CI](https://github.com/gabeacosta/voxmaestro/actions/workflows/ci.yml/badge.svg)](https://github.com/gabeacosta/voxmaestro/actions)
+[![Python 3.10–3.12](https://img.shields.io/badge/python-3.10--3.12-blue)](https://github.com/gabeacosta/voxmaestro)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
+
+## See it run
+
+```bash
+git clone https://github.com/gabeacosta/voxmaestro.git
+cd voxmaestro
+uv sync --extra dev
+uv run pytest -q
+uv run examples/pocket_voice_demo.py
+```
+
+Runs locally with Ollama and Piper. No telephony account, no cloud API key, no
+provider signup.
+
+What you are watching is the control layer deciding: which state the call is in,
+which transition is legal, what barge-in cancels, and what the runtime is
+allowed to claim happened. STT, TTS, telephony and the LLM are someone else's
+components on purpose.
+
 ---
 
 VoxMaestro is a **public alpha** of a voice-agent orchestration layer. It focuses on the control logic between speech/model components and external workflow actions rather than trying to own STT, TTS, telephony, or the LLM itself.
@@ -89,11 +111,23 @@ The implementation separates the **conversation-control state machine** from tra
 ```bash
 git clone https://github.com/gabeacosta/voxmaestro.git
 cd voxmaestro
+uv sync --extra dev
+uv run pytest tests/ -v
+```
+
+<details>
+<summary>Without uv</summary>
+
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 pytest tests/ -v
 ```
+
+The lockfile is authoritative; this path resolves dependencies fresh and may
+drift from CI.
+</details>
 
 Load an agent from YAML:
 
@@ -277,6 +311,14 @@ business workflow
 VoxMaestro is the public orchestration slice of that problem.
 
 For the broader deployment and runtime-evaluation story, see the [Forward Deployed Engineering portfolio](https://github.com/gabeacosta/ai-portfolio).
+
+---
+
+## Issues
+
+Issue creation is currently limited to the maintainer. Closed issues carry the
+file/line and test evidence for what fixed them, so the history is legible
+even without open contribution.
 
 ## License
 
