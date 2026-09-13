@@ -39,9 +39,9 @@ Also queried the GitHub Actions API directly for
 ## 4. Tests and results
 
 - `uv sync --extra dev`: succeeded, 10 packages installed, no errors.
-- `uv run pytest -q`: **144 passed**, 0 failed (131 at baseline + 11 new
-  tests for the Slice-4 Bonsai worker + 2 new regression tests for the
-  Slice-9.2 `PocketTTSBackend` fix, below).
+- `uv run pytest -q`: **155 passed**, 0 failed (131 at baseline + 11 for the
+  Slice-4 Bonsai worker + 2 regression tests for the `PocketTTSBackend` fix
+  + 11 for the acoustic session-crosstalk detector, all below).
 - `uv run ruff check`: all checks passed after removing one unused import.
 - Full logs: `evidence/first-slice/pytest.txt`, `evidence/first-slice/uv_sync.txt`.
 
@@ -109,13 +109,24 @@ physical/administrative access to the Mac mini and the repository's runner
 settings, which this cloud session does not have. Full diagnosis:
 `evidence/wt-voice-tts-001/diagnosis.md`.
 
-Separately (not blocking, but worth recording): `examples/run_wt_voice_tts_001.py`
-deliberately forces `evidence_complete=False` on every lane because no
-acoustic session-crosstalk detector exists yet, so per the frozen invariant
-in `docs/wt-voice-tts-001.md`, this benchmark adjudicates `TEST_INVALID` by
-design on *any* host, including the real Mac mini, until that detector is
-implemented. That is correct fail-closed behavior, not a bug, and is out of
-this slice's scope to fix.
+**Update — the crosstalk gap is now closed, by explicit user request.**
+`examples/run_wt_voice_tts_001.py` used to force `evidence_complete=False`
+on every lane because no acoustic session-crosstalk detector existed,
+meaning every lane adjudicated `TEST_INVALID` by design on any host,
+independent of the runner problem above. `voxmaestro.tts.crosstalk` now
+implements a real detector: each concurrent session gets a distinct corpus
+utterance, and `--use-whisper-crosstalk-check` transcribes each session's
+audio and flags it only when it demonstrably matches a *different*
+session's assigned line better than its own (never from turn_id/handle
+bookkeeping — a structural check was scoped and explicitly rejected as
+insufficient "acoustic" evidence, matching the benchmark's own prior
+comment). `sessions=1` lanes (nothing to cross into) now get a real
+`PASS`/`FAIL` verdict unconditionally; `sessions>1` lanes still need the
+flag, and every transcript conclusive, to leave `TEST_INVALID`. Verified
+here with a software-only wiring demo (fake model, fake transcriber — real
+ASR needs the Mac mini, same constraint as Slice 2):
+`evidence/wt-voice-tts-001/software-wiring-demo.json`. Full detail:
+`evidence/wt-voice-tts-001/diagnosis.md`.
 
 ## 7. Model worker used
 
@@ -185,22 +196,40 @@ correctly, not as performance data.
    (`test_worker_streams_tagged_chunks` in `tests/test_tts_contract.py`) was
    asserting the old buggy behavior (`cancelled == ["t1"]` after normal
    completion) and was corrected to assert the fix instead
-   (`cancelled == []`). Full suite: 144/144 passing, ruff clean.
+   (`cancelled == []`).
 
    This required touching `src/voxmaestro/tts/**`, outside this slice's
    original editable boundary (`examples/**`, `fleet.py`, the worker
    module, tests, workflows, evidence) — done only because the user
    explicitly asked for this specific fix after reviewing the finding.
 
-3. **WT-VOICE-TTS-001 cannot pass today regardless of hardware** (see §6) —
-   correct fail-closed behavior, recorded for visibility, not a bug to fix
-   in this slice.
+3. **WT-VOICE-TTS-001 could not pass regardless of hardware — fixed, by
+   explicit user request.** Every lane was forced `TEST_INVALID` because no
+   acoustic session-crosstalk detector existed. `voxmaestro.tts.crosstalk`
+   now implements one: each concurrent session gets a distinct corpus
+   utterance; with `--use-whisper-crosstalk-check`, each session's captured
+   audio is transcribed and flagged only when it demonstrably matches a
+   *different* session's assigned line better than its own (a structural,
+   handle-based check was scoped and explicitly rejected as insufficient —
+   see §6). `sessions=1` lanes now get a real `PASS`/`FAIL` verdict
+   unconditionally; `sessions>1` needs the flag (and every transcript
+   conclusive) to leave `TEST_INVALID`. The workflow
+   (`.github/workflows/wt-voice-tts-001.yml`) now installs `faster-whisper`
+   and passes the flag for `sessions>1` lanes in the full matrix. Verified
+   with a software-only wiring demo (fake model + fake transcriber; real
+   ASR needs the Mac mini): `evidence/wt-voice-tts-001/software-wiring-demo.json`.
+   New tests: `tests/test_tts_crosstalk.py` (7, pure decision logic) and
+   `tests/test_wt_voice_tts_executor.py` (+6, wiring integration including
+   a genuine simulated content leak being caught). Full suite: 155/155
+   passing, ruff clean.
 
 ## 10. Remaining blockers
 
 - Physical mic→speaker path unproven on real hardware (needs the Mac mini).
 - WT-VOICE-TTS-001 hardware evidence unproduced (needs the Mac mini's
-  self-hosted runner brought online with labels `self-hosted`+`voice`).
+  self-hosted runner brought online with labels `self-hosted`+`voice`; once
+  online, `sessions=1` lanes need nothing further, `sessions>1` also needs
+  `faster-whisper` installed there).
 - No real native low-bit (binary/ternary) model runtime exists yet to plug
   into `InferenceBackend`.
 
@@ -212,27 +241,35 @@ correctly, not as performance data.
    prove the physical claim.
 2. Bring the Mac mini's GitHub Actions runner online with the correct
    labels before attempting WT-VOICE-TTS-001 again; start with the bounded
-   lane (`runs=3`, `full_matrix=false`), not the full matrix.
-3. Implement a real acoustic session-crosstalk detector so WT-VOICE-TTS-001
-   can adjudicate something other than `TEST_INVALID`.
+   lane (`runs=3`, `full_matrix=false`), not the full matrix — this alone
+   now yields a real `sessions=1` verdict, not `TEST_INVALID`.
+3. Install `faster-whisper` on the Mac mini and run the full matrix with
+   `--use-whisper-crosstalk-check` for `sessions>1` lanes.
 4. Only once 1-2 are hardware-verified, wire a real `InferenceBackend`
    (Binary Bonsai or Ternary Bonsai) behind `voxmaestro.workers.bonsai_worker`
    on the Mac mini and re-run the Slice-4 end-to-end example against it.
 
 ## 12. Rollback notes
 
-Two core-file changes, both strict bug fixes with no behavior change for
-any caller not hitting the bug: `examples/serve_gateway.py` (§9.1) and
-`src/voxmaestro/tts/worker.py` + `.../tts/pocket.py` (§9.2). Everything else
-is additive. To roll back everything in this slice:
+Three core-file changes, all strict fixes/additions with no behavior change
+for any caller not hitting the bug or opting into the new flag:
+`examples/serve_gateway.py` (§9.1), `src/voxmaestro/tts/worker.py` +
+`.../tts/pocket.py` (§9.2), and `examples/run_wt_voice_tts_001.py` +
+`.github/workflows/wt-voice-tts-001.yml` (§9.3, crosstalk detector —
+`evidence_complete` only ever becomes `true` where it previously was
+unconditionally `false`; nothing that previously passed can now fail
+because of this change alone). Everything else is additive. To roll back
+everything in this slice:
 
 ```bash
 git checkout main -- examples/serve_gateway.py src/voxmaestro/tts/worker.py src/voxmaestro/tts/pocket.py
-git checkout main -- tests/test_tts_contract.py tests/test_tts_pocket.py  # revert the two test files too
+git checkout main -- examples/run_wt_voice_tts_001.py .github/workflows/wt-voice-tts-001.yml
+git checkout main -- tests/test_tts_contract.py tests/test_tts_pocket.py tests/test_wt_voice_tts_executor.py
 git rm -r evidence/ EXECUTION_STATUS.md FIRST_SLICE_REPORT.md \
   examples/voice_loop_slice2.py examples/bonsai_worker_service.py \
   examples/bonsai_worker_end_to_end.py examples/microscroll_landing_bonsai.yaml \
-  src/voxmaestro/workers/ tests/test_bonsai_worker.py
+  src/voxmaestro/workers/ src/voxmaestro/tts/crosstalk.py \
+  tests/test_bonsai_worker.py tests/test_tts_crosstalk.py
 ```
 
 Nothing in this slice touched the state machine, effect boundaries, secret
@@ -240,4 +277,7 @@ handling, or the existing `RemoteWorkerGenerationAdapter`/`fleet_from_config`
 contract — `voxmaestro.workers.bonsai_worker` is purely additive and
 VoxMaestro never imports it. The `tts/worker.py`/`tts/pocket.py` fix changes
 *when* `TTSBackend.cancel()` is called, not its signature or any other
-module's contract with it.
+module's contract with it. `voxmaestro.tts.crosstalk` is purely additive and
+is imported only by `examples/run_wt_voice_tts_001.py`; `qualification.py`
+and `measurement.py` (the frozen adjudicator and provider-neutral runner)
+were not touched.

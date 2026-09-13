@@ -5,7 +5,7 @@
   "checks": {
     "checkout_matches_expected_main": true,
     "dependency_install": "PASS (uv sync --extra dev)",
-    "unit_tests": "PASS (144/144 final; 131/131 at baseline, +11 for the Slice-4 Bonsai worker, +2 regression tests for the PocketTTSBackend turn_id fix)",
+    "unit_tests": "PASS (155/155 final; 131/131 at baseline, +11 for the Slice-4 Bonsai worker, +2 regression tests for the PocketTTSBackend turn_id fix, +11 for the acoustic session-crosstalk detector)",
     "pocket_voice_demo_physical_hardware": "BLOCKED - no microphone/speaker in this container; see FIRST_SLICE_REPORT.md",
     "pocket_voice_demo_software_substitute": "PASS - see pocket_voice_demo.txt (examples/voice_loop_slice2.py)"
   },

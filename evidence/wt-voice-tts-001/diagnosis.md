@@ -61,21 +61,38 @@ narrowed further than "no matching runner was ever online for this job."
   this cancelled run at all (it never started), so this diagnosis makes no
   claim about the benchmark code's correctness on real hardware.
 
-## A separate, pre-existing finding: this benchmark cannot emit PASS today
+## Update: the "cannot emit PASS" finding below is now resolved for sessions=1
 
-Independent of runner availability, `examples/run_wt_voice_tts_001.py` (see
-its own module docstring and `run_lane()`) deliberately forces
-`evidence_complete=False` on every lane it produces, because it has no
-acoustic session-crosstalk detector. Per `docs/wt-voice-tts-001.md`'s frozen
-invariant #3 ("missing or incomplete evidence produces `TEST_INVALID`, never
-`PASS`"), **every run of this benchmark -- on this container, on the real
-Mac mini, anywhere -- currently adjudicates `TEST_INVALID` by design**, not
-`PASS` or `FAIL`. This is correct, intentional fail-closed behavior, not a
-bug, but it means restoring the runner alone does not get WT-VOICE-TTS-001 to
-a `PASS` verdict; a real cross-talk detector still needs to be implemented
-first. That is out of scope for this slice (Section 12 non-goal: "do not
-weaken qualification gates" -- the honest fix is implementing the detector,
-not loosening the invariant).
+Independent of runner availability, `examples/run_wt_voice_tts_001.py` used
+to unconditionally force `evidence_complete=False` on every lane, because it
+had no acoustic session-crosstalk detector -- meaning every lane, on any
+host, adjudicated `TEST_INVALID` by design regardless of the runner problem
+above.
+
+That has been fixed (not just worked around): `voxmaestro.tts.crosstalk`
+adds a real detector -- each concurrent session gets a distinct corpus
+utterance, and with `--use-whisper-crosstalk-check` (real ASR, needs
+`faster-whisper`), each session's captured audio is transcribed and checked
+against every session's assignment, flagging a session only when its audio
+demonstrably matches a *different* session's line better than its own.
+
+Consequences for the frozen matrix:
+- **`sessions=1` lanes** (4 of the 16 in the full matrix: en/es x fp32/int8)
+  have nothing to cross into, so they now get a real `PASS`/`FAIL` verdict
+  **without needing the crosstalk flag or faster-whisper at all** -- fixing
+  the runner alone is now sufficient to get real evidence for those four.
+- **`sessions>1` lanes** still require `--use-whisper-crosstalk-check` (real
+  ASR on real audio) to leave `TEST_INVALID`; without it, or if any
+  transcript comes back inconclusive, they correctly stay `TEST_INVALID`.
+
+Verified in this container with a software-only wiring demo (fake model,
+fake transcriber -- see `software-wiring-demo.json` and its README in this
+same directory): with real crosstalk evidence present, `evidence_complete`
+becomes `true` and the adjudicator returns a real verdict, `FAIL`, driven by
+`realtime_factor_p95` (expected and meaningless for a fake model) with
+`session_crosstalk_events: 0` correctly measured, not defaulted.
+`tests/test_wt_voice_tts_executor.py` also covers a genuine simulated
+content leak between two sessions being caught.
 
 ## Smallest required action (cannot be performed from this session)
 
@@ -84,11 +101,10 @@ not loosening the invariant).
    for `gabeacosta/voxmaestro` (`./svc.sh status` / `./run.sh` if running
    manually, or check the LaunchAgent/daemon if installed as a service).
 2. Once online, re-fire the workflow via `workflow_dispatch` with the
-   bounded first lane described in the handoff (`runs=3`, `full_matrix=false`)
-   before attempting the full 16-lane matrix.
-3. Separately (not blocking S3's runner fix): implement a real
-   session-crosstalk detector so the benchmark can adjudicate something
-   other than `TEST_INVALID`.
+   bounded first lane described in the handoff (`runs=3`, `full_matrix=false`,
+   `sessions=1` needs no extra flag for a real verdict).
+3. For `sessions>1` lanes, install `faster-whisper` on the Mac mini and add
+   `--use-whisper-crosstalk-check` before attempting the full 16-lane matrix.
 
 ## Verdict
 

@@ -1,0 +1,185 @@
+{
+  "acoustic_crosstalk_findings": [
+    {
+      "best_other_session_id": "wt-tts-en-int8-s2",
+      "best_other_similarity": 0.2631578947368421,
+      "crosstalk": false,
+      "inconclusive": false,
+      "own_similarity": 1.0,
+      "run": 1,
+      "session_id": "wt-tts-en-int8-s1"
+    },
+    {
+      "best_other_session_id": "wt-tts-en-int8-s1",
+      "best_other_similarity": 0.13157894736842105,
+      "crosstalk": false,
+      "inconclusive": false,
+      "own_similarity": 1.0,
+      "run": 1,
+      "session_id": "wt-tts-en-int8-s2"
+    },
+    {
+      "best_other_session_id": "wt-tts-en-int8-s2",
+      "best_other_similarity": 0.3968253968253968,
+      "crosstalk": false,
+      "inconclusive": false,
+      "own_similarity": 1.0,
+      "run": 2,
+      "session_id": "wt-tts-en-int8-s1"
+    },
+    {
+      "best_other_session_id": "wt-tts-en-int8-s1",
+      "best_other_similarity": 0.30158730158730157,
+      "crosstalk": false,
+      "inconclusive": false,
+      "own_similarity": 1.0,
+      "run": 2,
+      "session_id": "wt-tts-en-int8-s2"
+    },
+    {
+      "best_other_session_id": "wt-tts-en-int8-s2",
+      "best_other_similarity": 0.37168141592920356,
+      "crosstalk": false,
+      "inconclusive": false,
+      "own_similarity": 1.0,
+      "run": 3,
+      "session_id": "wt-tts-en-int8-s1"
+    },
+    {
+      "best_other_session_id": "wt-tts-en-int8-s1",
+      "best_other_similarity": 0.37168141592920356,
+      "crosstalk": false,
+      "inconclusive": false,
+      "own_similarity": 1.0,
+      "run": 3,
+      "session_id": "wt-tts-en-int8-s2"
+    }
+  ],
+  "acoustic_crosstalk_measured": true,
+  "backend_version": "software-wiring-demo-not-real-pocket-tts",
+  "host_lane": "self-hosted-voice",
+  "lane": {
+    "audio_underruns": 0,
+    "backend": "pocket-python",
+    "cancel_to_silence_p95_ms": 0.6819269999596145,
+    "evidence_complete": true,
+    "first_chunk_p95_ms": 1.6492330000801303,
+    "language": "en",
+    "quantization": "int8",
+    "realtime_factor_p95": 11.657255999853078,
+    "session_crosstalk_events": 0,
+    "sessions": 2,
+    "stale_chunks_after_cancel": 0,
+    "successful_runs": 6
+  },
+  "qualification": {
+    "findings": [
+      {
+        "field": "successful_runs",
+        "limit": 3,
+        "observed": 6,
+        "passed": true
+      },
+      {
+        "field": "first_chunk_p95_ms",
+        "limit": 300.0,
+        "observed": 1.6492330000801303,
+        "passed": true
+      },
+      {
+        "field": "cancel_to_silence_p95_ms",
+        "limit": 150.0,
+        "observed": 0.6819269999596145,
+        "passed": true
+      },
+      {
+        "field": "realtime_factor_p95",
+        "limit": 1.0,
+        "observed": 11.657255999853078,
+        "passed": false
+      },
+      {
+        "field": "audio_underruns",
+        "limit": 0,
+        "observed": 0,
+        "passed": true
+      },
+      {
+        "field": "stale_chunks_after_cancel",
+        "limit": 0,
+        "observed": 0,
+        "passed": true
+      },
+      {
+        "field": "session_crosstalk_events",
+        "limit": 0,
+        "observed": 0,
+        "passed": true
+      }
+    ],
+    "verdict": "FAIL"
+  },
+  "runs": [
+    {
+      "audio_duration_s": 0.00020833333333333335,
+      "audio_underruns": 0,
+      "cancel_to_silence_ms": 0.6819269999596145,
+      "first_chunk_ms": 1.195841000026121,
+      "session_crosstalk_events": 0,
+      "stale_chunks_after_cancel": 0,
+      "success": true,
+      "synthesize_ms": 2.428594999969391
+    },
+    {
+      "audio_duration_s": 0.000625,
+      "audio_underruns": 0,
+      "cancel_to_silence_ms": 0.6237300000293544,
+      "first_chunk_ms": 1.6492330000801303,
+      "session_crosstalk_events": 0,
+      "stale_chunks_after_cancel": 0,
+      "success": true,
+      "synthesize_ms": 2.1806650000826266
+    },
+    {
+      "audio_duration_s": 0.000625,
+      "audio_underruns": 0,
+      "cancel_to_silence_ms": 0.3533850000394523,
+      "first_chunk_ms": 0.7115230000636075,
+      "session_crosstalk_events": 0,
+      "stale_chunks_after_cancel": 0,
+      "success": true,
+      "synthesize_ms": 0.9898040000280162
+    },
+    {
+      "audio_duration_s": 0.0007083333333333334,
+      "audio_underruns": 0,
+      "cancel_to_silence_ms": 0.31869700001152523,
+      "first_chunk_ms": 0.5172559999664372,
+      "session_crosstalk_events": 0,
+      "stale_chunks_after_cancel": 0,
+      "success": true,
+      "synthesize_ms": 0.9486569999808125
+    },
+    {
+      "audio_duration_s": 0.0007083333333333334,
+      "audio_underruns": 0,
+      "cancel_to_silence_ms": 0.49662999992960977,
+      "first_chunk_ms": 0.6474799999978131,
+      "session_crosstalk_events": 0,
+      "stale_chunks_after_cancel": 0,
+      "success": true,
+      "synthesize_ms": 0.9759099999655518
+    },
+    {
+      "audio_duration_s": 0.0005,
+      "audio_underruns": 0,
+      "cancel_to_silence_ms": 0.14948099999401165,
+      "first_chunk_ms": 0.40507899996100605,
+      "session_crosstalk_events": 0,
+      "stale_chunks_after_cancel": 0,
+      "success": true,
+      "synthesize_ms": 1.161829000011494
+    }
+  ],
+  "schema": "wt-voice-tts-001.evidence.v1"
+}
