@@ -1,0 +1,21 @@
+Using CPython 3.11.15 interpreter at: /usr/local/bin/python3
+Creating virtual environment at: .venv
+Resolved 89 packages in 5ms
+   Building voxmaestro @ file:///home/user/voxmaestro
+Downloading pygments (1.2MiB)
+Downloading ruff (9.6MiB)
+ Downloading pygments
+ Downloading ruff
+      Built voxmaestro @ file:///home/user/voxmaestro
+Prepared 10 packages in 1.77s
+Installed 10 packages in 23ms
+ + iniconfig==2.3.0
+ + packaging==26.3
+ + pluggy==1.6.0
+ + pygments==2.21.0
+ + pytest==9.1.1
+ + pytest-asyncio==1.4.0
+ + pyyaml==6.0.3
+ + ruff==0.4.10
+ + typing-extensions==4.16.0
+ + voxmaestro==0.1.0 (from file:///home/user/voxmaestro)
