@@ -92,10 +92,12 @@ class TTSWorker:
         )
         thread.start()
 
+        completed = False
         try:
             while True:
                 item = await queue.get()
                 if item is _SENTINEL:
+                    completed = True
                     break
                 if isinstance(item, Exception):
                     raise item
@@ -105,8 +107,28 @@ class TTSWorker:
                     continue
                 yield chunk
         finally:
+            # Only tell the backend to stop when this stream was actually
+            # interrupted -- not on every exit. Backends may track
+            # cancellation by turn_id alone (see PocketTTSBackend._cancel);
+            # calling cancel() on a stream that already finished normally
+            # would flag that turn_id as cancelled for good, silently
+            # breaking a later, unrelated request that happens to reuse the
+            # same turn_id string (e.g. the literal "greeting" turn every
+            # session emits).
+            #
+            # An explicit TTSWorker.cancel(turn_id) call (real barge-in or
+            # flush) already notifies the backend itself -- checked via
+            # cancel.is_set() *before* we set it below -- so this call is a
+            # fallback for the one remaining case: the consumer being torn
+            # down (e.g. the surrounding task cancelled) without going
+            # through that explicit path. Calling backend.cancel() from both
+            # places would re-flag a turn_id the backend had already pruned
+            # once its own generator finished, reintroducing the same leak
+            # for whichever request reuses that turn_id next.
+            already_notified = cancel.is_set()
             cancel.set()
-            self._backend.cancel(req.turn_id)
+            if not completed and not already_notified:
+                self._backend.cancel(req.turn_id)
             with self._lock:
                 self._cancels.pop(req.turn_id, None)
             await loop.run_in_executor(None, thread.join, 1.0)

@@ -195,28 +195,37 @@ class PocketTTSBackend:
             raise RuntimeError(f"session {req.session_id!r} is not open")
         seq = req.seq_start
         pending: AudioChunk | None = None
-        for raw in _call_stream(self._model, state, req.text):
-            if req.turn_id in self._cancel:
-                break
-            chunk = AudioChunk(
-                pcm=_to_pcm(raw),
-                sample_rate=self._sample_rate,
-                turn_id=req.turn_id,
-                seq=seq,
-            )
-            seq += 1
-            if pending is not None:
-                yield pending
-            pending = chunk
-        if pending is not None and req.turn_id not in self._cancel:
-            yield AudioChunk(
-                pcm=pending.pcm,
-                sample_rate=pending.sample_rate,
-                turn_id=pending.turn_id,
-                seq=pending.seq,
-                is_last=True,
-                flush_reason="end",
-            )
+        try:
+            for raw in _call_stream(self._model, state, req.text):
+                if req.turn_id in self._cancel:
+                    break
+                chunk = AudioChunk(
+                    pcm=_to_pcm(raw),
+                    sample_rate=self._sample_rate,
+                    turn_id=req.turn_id,
+                    seq=seq,
+                )
+                seq += 1
+                if pending is not None:
+                    yield pending
+                pending = chunk
+            if pending is not None and req.turn_id not in self._cancel:
+                yield AudioChunk(
+                    pcm=pending.pcm,
+                    sample_rate=pending.sample_rate,
+                    turn_id=pending.turn_id,
+                    seq=pending.seq,
+                    is_last=True,
+                    flush_reason="end",
+                )
+        finally:
+            # A cancel flag is only meaningful for the specific synthesize()
+            # call it was raised against. Clear it here so a later, unrelated
+            # request reusing this turn_id string does not inherit a stale
+            # cancellation (see TTSWorker.stream's matching fix for why this
+            # flag is now only set on a genuine interruption in the first
+            # place -- this is the belt-and-suspenders half of that fix).
+            self._cancel.discard(req.turn_id)
 
     def cancel(self, turn_id: str) -> None:
         """Stop producing chunks for turn_id at the next yield."""

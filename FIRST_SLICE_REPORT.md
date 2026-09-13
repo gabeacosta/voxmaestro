@@ -39,8 +39,9 @@ Also queried the GitHub Actions API directly for
 ## 4. Tests and results
 
 - `uv sync --extra dev`: succeeded, 10 packages installed, no errors.
-- `uv run pytest -q`: **142 passed**, 0 failed (131 at baseline + 11 new
-  tests added for the Slice-4 Bonsai worker in this session).
+- `uv run pytest -q`: **144 passed**, 0 failed (131 at baseline + 11 new
+  tests for the Slice-4 Bonsai worker + 2 new regression tests for the
+  Slice-9.2 `PocketTTSBackend` fix, below).
 - `uv run ruff check`: all checks passed after removing one unused import.
 - Full logs: `evidence/first-slice/pytest.txt`, `evidence/first-slice/uv_sync.txt`.
 
@@ -148,23 +149,48 @@ correctly, not as performance data.
    frames with the ASR backend's own probed sample rate instead of a
    hardcoded default that happened to match the wrong stream.
 
-2. **`PocketTTSBackend._cancel` permanently poisons a reused `turn_id`
-   (found, documented, not fixed — outside this slice's editable
-   boundary).** `TTSWorker.stream()` (`tts/worker.py`) unconditionally calls
+2. **`PocketTTSBackend._cancel` permanently poisoned a reused `turn_id`
+   (found, reproduced, and fixed by explicit user request).**
+   `TTSWorker.stream()` (`tts/worker.py`) was unconditionally calling
    `self._backend.cancel(req.turn_id)` in its `finally` block on *every*
    stream exit, cancelled or not. `PocketTTSBackend.cancel()`
-   (`tts/pocket.py`) adds to a `_cancel: set[str]` that is never pruned.
+   (`tts/pocket.py`) added to a `_cancel: set[str]` that was never pruned.
    Reproduced twice independently: an isolated `backend.synthesize()` call,
    and the full `SessionAudio`/`TTSWorker` path. Effect: on a long-running
    server (`examples/serve_gateway.py`'s actual use case), the **second**
    session to use any given turn_id string — most critically the literal
-   `"greeting"`, used by *every* session's opening greeting — gets **zero
-   audio chunks, silently, with no error**. This is a real production defect
-   that would have surfaced on the second caller of a real deployment. Left
-   unfixed per this slice's editable boundary (`src/voxmaestro/tts/**` is
-   core TTS-contract code, not `examples/**`/`fleet.py`); recommend scoping
-   `_cancel` by `(session_id, turn_id)` and pruning entries on normal
-   completion.
+   `"greeting"`, used by *every* session's opening greeting — got **zero
+   audio chunks, silently, with no error**.
+
+   **Fix** (two changes, `src/voxmaestro/tts/worker.py` and `.../pocket.py`):
+   - `TTSWorker.stream()`'s `finally` now calls `backend.cancel(turn_id)`
+     only when the stream actually ended abnormally: torn down before the
+     producer finished on its own, *and* no explicit `TTSWorker.cancel()`
+     call had already notified the backend directly. It is a fallback for
+     the "consumer torn down without going through the explicit cancel
+     path" case, not an unconditional every-exit notification. This alone
+     fixes the reported bug (normal completions never poison the flag).
+   - `PocketTTSBackend.synthesize()` now discards its own `turn_id` from
+     `_cancel` in a `finally`, so even a *genuine* cancellation's flag
+     cannot outlive the specific generator call it targeted — closing a
+     narrower residual gap where a real cancel could otherwise still
+     poison the very next reuse of that same turn_id, one generation later.
+
+   Verified against the original repro: session B's greeting, previously
+   0/5 chunks after session A's normal completion, now gets 5/5, with
+   `backend._cancel` empty afterward. New tests:
+   `test_reused_turn_id_is_not_poisoned_by_a_prior_sessions_normal_completion`
+   and `test_cancelled_turn_id_does_not_leak_to_a_later_reuse` in
+   `tests/test_tts_pocket.py`. One existing test
+   (`test_worker_streams_tagged_chunks` in `tests/test_tts_contract.py`) was
+   asserting the old buggy behavior (`cancelled == ["t1"]` after normal
+   completion) and was corrected to assert the fix instead
+   (`cancelled == []`). Full suite: 144/144 passing, ruff clean.
+
+   This required touching `src/voxmaestro/tts/**`, outside this slice's
+   original editable boundary (`examples/**`, `fleet.py`, the worker
+   module, tests, workflows, evidence) — done only because the user
+   explicitly asked for this specific fix after reviewing the finding.
 
 3. **WT-VOICE-TTS-001 cannot pass today regardless of hardware** (see §6) —
    correct fail-closed behavior, recorded for visibility, not a bug to fix
@@ -177,7 +203,6 @@ correctly, not as performance data.
   self-hosted runner brought online with labels `self-hosted`+`voice`).
 - No real native low-bit (binary/ternary) model runtime exists yet to plug
   into `InferenceBackend`.
-- Defect #2 above (`PocketTTSBackend` turn_id poisoning) is unfixed.
 
 ## 11. Recommendation for the next slice
 
@@ -188,24 +213,22 @@ correctly, not as performance data.
 2. Bring the Mac mini's GitHub Actions runner online with the correct
    labels before attempting WT-VOICE-TTS-001 again; start with the bounded
    lane (`runs=3`, `full_matrix=false`), not the full matrix.
-3. Fix defect #2 (`PocketTTSBackend._cancel` scoping) before any real voice
-   session reuses turn_ids in production — it will otherwise cause silent
-   dead air on the second caller.
-4. Implement a real acoustic session-crosstalk detector so WT-VOICE-TTS-001
+3. Implement a real acoustic session-crosstalk detector so WT-VOICE-TTS-001
    can adjudicate something other than `TEST_INVALID`.
-5. Only once 1-2 are hardware-verified, wire a real `InferenceBackend`
+4. Only once 1-2 are hardware-verified, wire a real `InferenceBackend`
    (Binary Bonsai or Ternary Bonsai) behind `voxmaestro.workers.bonsai_worker`
    on the Mac mini and re-run the Slice-4 end-to-end example against it.
 
 ## 12. Rollback notes
 
-All changes are additive except one 12-line change to
-`examples/serve_gateway.py` (the sample-rate fix in §9.1), which is a strict
-bug fix with no behavior change for callers who already passed
-`mic_sample_rate` explicitly. To roll back everything in this slice:
+Two core-file changes, both strict bug fixes with no behavior change for
+any caller not hitting the bug: `examples/serve_gateway.py` (§9.1) and
+`src/voxmaestro/tts/worker.py` + `.../tts/pocket.py` (§9.2). Everything else
+is additive. To roll back everything in this slice:
 
 ```bash
-git checkout main -- examples/serve_gateway.py
+git checkout main -- examples/serve_gateway.py src/voxmaestro/tts/worker.py src/voxmaestro/tts/pocket.py
+git checkout main -- tests/test_tts_contract.py tests/test_tts_pocket.py  # revert the two test files too
 git rm -r evidence/ EXECUTION_STATUS.md FIRST_SLICE_REPORT.md \
   examples/voice_loop_slice2.py examples/bonsai_worker_service.py \
   examples/bonsai_worker_end_to_end.py examples/microscroll_landing_bonsai.yaml \
@@ -215,4 +238,6 @@ git rm -r evidence/ EXECUTION_STATUS.md FIRST_SLICE_REPORT.md \
 Nothing in this slice touched the state machine, effect boundaries, secret
 handling, or the existing `RemoteWorkerGenerationAdapter`/`fleet_from_config`
 contract — `voxmaestro.workers.bonsai_worker` is purely additive and
-VoxMaestro never imports it.
+VoxMaestro never imports it. The `tts/worker.py`/`tts/pocket.py` fix changes
+*when* `TTSBackend.cancel()` is called, not its signature or any other
+module's contract with it.

@@ -35,17 +35,33 @@ been proven on real hardware.
    session rate of `16000`; the first real mic frame on real hardware would
    have raised `ValueError` inside `WhisperASRBackend.accept()`, uncaught by
    the gateway.
-2. **`PocketTTSBackend._cancel` permanently poisons a reused `turn_id`** —
-   found, reproduced, documented; **not fixed** (outside this slice's
-   editable boundary — `src/voxmaestro/tts/**` is core TTS-contract code).
-   `TTSWorker.stream()` unconditionally calls `backend.cancel(turn_id)` in
-   its `finally` block on every stream exit, and `PocketTTSBackend._cancel`
-   never removes entries. Any long-running server session that reuses a
-   turn_id string (most critically the literal `"greeting"`, used by every
-   session) goes **silently** to zero audio chunks on its second use — no
-   exception, no error event. Needs a fix scoped to `tts/pocket.py`/`tts/worker.py`
-   (e.g. key `_cancel` by `(session_id, turn_id)` and prune on normal
-   completion) by whoever owns that module.
+2. **`PocketTTSBackend._cancel` permanently poisoned a reused `turn_id`** —
+   found, reproduced, and **fixed** (by explicit user request, since this is
+   core `src/voxmaestro/tts/**` code outside this slice's original editable
+   boundary). `TTSWorker.stream()` was unconditionally calling
+   `backend.cancel(turn_id)` in its `finally` block on *every* stream exit,
+   and `PocketTTSBackend._cancel` never removed entries. Any long-running
+   server session that reused a turn_id string (most critically the literal
+   `"greeting"`, used by every session) went **silently** to zero audio
+   chunks on its second use — no exception, no error event.
+
+   Fix (two changes, both with regression tests):
+   - `tts/worker.py`: `TTSWorker.stream()`'s `finally` now only calls
+     `backend.cancel(turn_id)` when the stream actually ended abnormally
+     (torn down before the producer finished, and no explicit
+     `TTSWorker.cancel()` already notified the backend) — never on normal
+     completion.
+   - `tts/pocket.py`: `PocketTTSBackend.synthesize()` now discards its own
+     `turn_id` from `_cancel` in a `finally`, so a cancellation flag never
+     outlives the specific generator call it was raised against.
+   - Confirmed via the original repro: session B's greeting, which
+     previously got 0/5 chunks after session A's normal completion, now
+     gets the full 5/5, and `backend._cancel` is empty afterward.
+   - New tests: `tests/test_tts_pocket.py::test_reused_turn_id_is_not_poisoned_by_a_prior_sessions_normal_completion`,
+     `::test_cancelled_turn_id_does_not_leak_to_a_later_reuse`; one existing
+     test in `tests/test_tts_contract.py` (`test_worker_streams_tagged_chunks`)
+     was asserting the old, buggy behavior and was corrected to assert the
+     fixed behavior instead. Full suite: 144/144 passing.
 
 ## Non-goals honored
 
