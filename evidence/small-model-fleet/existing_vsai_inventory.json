@@ -1,0 +1,89 @@
+{
+  "observed_date": "2026-09-14",
+  "vsai_repo_sha": "031b6d12484cf50986dc0ca333a3d07fe394fa71",
+  "vsai_spec_version": "v0.1.0",
+  "vsai_spec_hash": "5ae7413047fecc19",
+  "voxmaestro_base_sha": "df6b154df20a8f10b7407466338c9c66d40c8126",
+  "live_path": "/Users/clue/vsai-inference",
+  "live_entrypoint": "/Users/clue/vsai-inference/server.py::classify_intent",
+  "live_source_sha256": "7802db53d565d24acf979c0c46e097e883682229029982e0dd3cb99985d49021",
+  "intent": {
+    "found": true,
+    "service": "VSAI 3-Tier Intent Server / com.dealiq.ce-server",
+    "model": "/Users/clue/models/vsai-intent-mlx",
+    "runtime": "mlx-lm 0.31.1 / mlx 0.31.1 / FastAPI",
+    "endpoint": "http://127.0.0.1:11436/v1/intent",
+    "pid": null,
+    "health": "PASS",
+    "health_evidence": {"status": "ok", "mlx_loaded": true, "uptime_seconds": 405797.3},
+    "schema_compatible": false,
+    "languages": [],
+    "language_claims_unqualified": ["en", "es"],
+    "disposition": "BLOCKED",
+    "reason": "Existing service cascades MLX to local Ollama to VPS, repairs output, requires API key, lacks request-owned legal intents, and wraps intent JSON as a string. Health is not contract admission.",
+    "ollama_fallback_model": "vsai-intent-v7:latest",
+    "model_revision": null,
+    "architecture": "Qwen2ForCausalLM",
+    "max_position_embeddings": 32768
+  },
+  "embedding": {
+    "found": true,
+    "service": "Ollama",
+    "model": "nomic-embed-text:latest",
+    "runtime": "Ollama 0.33.3",
+    "endpoint": "http://127.0.0.1:11434/api/embed",
+    "pid": null,
+    "health": "PASS",
+    "dimensions": 768,
+    "languages": [],
+    "languages_smoke_input": ["en", "es"],
+    "disposition": "BLOCKED",
+    "reason": "Existing endpoint works; EN/ES retrieval relevance, corpus provenance, resident memory and steady latency admission remain unqualified. Retain as first retrieval candidate.",
+    "digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
+    "payload_bytes": 274302450,
+    "quantization": "F16",
+    "context_length": 2048,
+    "probe": {
+      "synthetic_input_count": 3,
+      "dimensions": [768, 768, 768],
+      "duplicate_input_vectors_exactly_equal": true,
+      "total_duration_ns": 599698625,
+      "load_duration_ns": 560021292,
+      "prompt_eval_count": 32,
+      "scope": "One batch containing repeated English query and one Spanish query; not retrieval relevance or latency percentile evidence."
+    }
+  },
+  "qwen3_8b": {
+    "present_before": true,
+    "active_dependency": true,
+    "removed": true,
+    "space_reclaimed_bytes": 0,
+    "payload_bytes": 5225387864,
+    "digest": "560d37d519f42d65e8bb0c15004c6155dd53130d22b024e87eb32705e8a5f80b",
+    "shared_digest_alias": "veynit-qwen3:8b",
+    "removal_note": "qwen3:8b tag removed after explicit operator authorization; shared veynit-qwen3:8b tag retains the digest, so disk footprint did not change.",
+    "dependencies": [
+      "/Users/clue/openclaw-v2/config/settings.yaml:37",
+      "/Users/clue/openclaw-v2/config/settings.yaml:42",
+      "/Users/clue/openclaw-v2/src/core/brain.py:1430",
+      "/Users/clue/openclaw-v2/src/core/brain.py:1463",
+      "/Users/clue/openclaw-v2/config/kora_settings.yaml:28"
+    ]
+  },
+  "mlx_cache": {
+    "python": "/Users/clue/vsai-inference/.venv/bin/python3",
+    "default_hf_hub_cache": "/Users/clue/.cache/huggingface/hub",
+    "default_hf_hub_cache_exists": false,
+    "bonsai_found_in_searched_roots": false,
+    "searched_roots": ["/Users/clue/models", "/Users/clue/Library/Caches", "/Users/clue/.cache"],
+    "search_maxdepth": 3
+  },
+  "calendar": {
+    "found_in_vsai_inference": false,
+    "candidate_tool_entrypoint": "/Users/clue/governed-mcp-spine/mcp/servers/voice/src/main.py::book_appointment",
+    "candidate_provider_entrypoint": "/Users/clue/governed-mcp-spine/services/gcal-bridge/src/main.py::book",
+    "effect_verified": false,
+    "disposition": "BLOCKED",
+    "reason": "Current local provider source can return a synthetic stub confirmation when Google configuration is absent; voice MCP trusts 2xx. Prior isolated correction and Google sandbox qualification were not deployed."
+  }
+}

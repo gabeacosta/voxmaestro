@@ -1,0 +1,7 @@
+{
+  "status": "PARTIAL",
+  "l0": {"p95_ms": null, "reason": "real Bonsai 1.7B was not launched"},
+  "l1": {"first_probe_ms": ">5000 (deadline failure)", "successful_probe_ms": "approximately 700", "measurement_method": "loopback curl through worker; coarse wall-clock observation"},
+  "admission_target_l0_p95_ms": 750,
+  "no_claim_of_pass": true
+}

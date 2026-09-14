@@ -79,15 +79,19 @@ def make_voice_for(backend):
     return voice_for
 
 
-async def main() -> int:
+def parse_args(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=7780)
     parser.add_argument("--voice", action="store_true", help="enable Pocket TTS")
     parser.add_argument("--mic", action="store_true", help="enable Whisper ASR")
-    args = parser.parse_args()
+    parser.add_argument("--config", type=Path, default=CONFIG_PATH, help="runtime YAML config")
+    return parser.parse_args(argv)
 
-    config = SchemaLoader.load(CONFIG_PATH)
+
+async def main() -> int:
+    args = parse_args()
+    config = SchemaLoader.load(args.config)
     classifier, generator = fleet_from_config(config)
     runtime = VoxMaestroRuntime(
         config,

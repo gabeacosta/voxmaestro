@@ -1,0 +1,28 @@
+{
+  "observed_date": "2026-09-14",
+  "serving_library": "mlx-lm 0.31.1 / mlx 0.31.1",
+  "models": [
+    {
+      "repo": "prism-ml/Ternary-Bonsai-4B-mlx-2bit",
+      "revision": "e1374ad6bf9b1b56afd743936b8faa33c409a75f",
+      "role": "L1 worker challenger",
+      "endpoint": "http://127.0.0.1:8080/v1",
+      "context_limit_configured": 8192,
+      "max_output_tokens": 120,
+      "process_command": "mlx_lm.server --model prism-ml/Ternary-Bonsai-4B-mlx-2bit --host 127.0.0.1 --port 8080 --decode-concurrency 1 --prompt-concurrency 1 --max-tokens 120 --temp 0 --prompt-cache-size 1 --prompt-cache-bytes 268435456",
+      "downloaded": true,
+      "health": "PASS"
+    },
+    {
+      "repo": "prism-ml/Ternary-Bonsai-1.7B-mlx-2bit",
+      "revision": null,
+      "role": "L0 intent challenger",
+      "endpoint": "http://127.0.0.1:8081/v1",
+      "context_limit_configured": 4096,
+      "max_output_tokens": 64,
+      "process_command": "mlx_lm.server --model prism-ml/Ternary-Bonsai-1.7B-mlx-2bit --host 127.0.0.1 --port 8081 --decode-concurrency 1 --prompt-concurrency 1 --max-tokens 64 --temp 0",
+      "downloaded": false,
+      "health": "UNKNOWN"
+    }
+  ]
+}

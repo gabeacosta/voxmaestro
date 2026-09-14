@@ -1,0 +1,9 @@
+Initial host observations, 2026-09-14 America/Los_Angeles
+RAM bytes=17179869184
+hw.model=Mac16,10
+memory_pressure -Q free=36%
+kern.memorystatus_vm_pressure_level=2
+swap observation1 used=31421.06M total=32768.00M
+swap observation2 used=31283.81M total=32768.00M
+Existing qwen3:8b api/ps size_vram=7413568634 bytes context=16384
+This is baseline host pressure, not fleet co-residency evidence.

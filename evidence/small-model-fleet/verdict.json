@@ -1,0 +1,19 @@
+{
+  "program": "VM-SMALL-FLEET-001",
+  "hardware": "Mac mini M4 16GB",
+  "l0_model": "prism-ml/Ternary-Bonsai-1.7B-mlx-2bit",
+  "l1_model": "prism-ml/Ternary-Bonsai-4B-mlx-2bit",
+  "l0": "TEST_INVALID",
+  "l1": "PASS",
+  "physical_voice": "BLOCKED",
+  "co_residency": "FAIL",
+  "notes": [
+    "242 regression tests passed and Ruff passed.",
+    "L1 real-model worker path produced a grounded response.",
+    "4B MLX process RSS observed at approximately 19.5 GB; host swap exceeded 33 GB.",
+    "Existing VSAI intent service is healthy but contract-incompatible and remains BLOCKED.",
+    "Nomic is healthy at 768 dimensions but retrieval admission remains BLOCKED pending relevance and steady-state evidence.",
+    "qwen3:8b tag was removed after explicit operator authorization; veynit-qwen3:8b retains the shared 5.2 GB digest, so no disk space was reclaimed.",
+    "Calendar booking effect remains BLOCKED because current unconfigured bridge can return synthetic confirmation."
+  ]
+}

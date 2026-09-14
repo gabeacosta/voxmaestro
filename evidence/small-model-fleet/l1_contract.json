@@ -1,0 +1,11 @@
+{
+  "status": "PASS",
+  "fixed_worker_id": "bonsai-l1-01",
+  "fixed_slot": "l1_worker",
+  "contract_version": "remote_worker.v0",
+  "single_invocation": true,
+  "provider_selection_by_model": false,
+  "tool_execution_by_model": false,
+  "automatic_fallback": false,
+  "credential_stripping": true
+}
