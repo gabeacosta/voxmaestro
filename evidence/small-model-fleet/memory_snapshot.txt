@@ -7,3 +7,4 @@ swap observation1 used=31421.06M total=32768.00M
 swap observation2 used=31283.81M total=32768.00M
 Existing qwen3:8b api/ps size_vram=7413568634 bytes context=16384
 This is baseline host pressure, not fleet co-residency evidence.
+Qwen removal: qwen3:8b and veynit-qwen3:8b removed through Ollama; payload inventory 6.7G before to 1.8G after; approximately 5225387864 bytes reclaimed.

@@ -13,7 +13,7 @@
     "4B MLX process RSS observed at approximately 19.5 GB; host swap exceeded 33 GB.",
     "Existing VSAI intent service is healthy but contract-incompatible and remains BLOCKED.",
     "Nomic is healthy at 768 dimensions but retrieval admission remains BLOCKED pending relevance and steady-state evidence.",
-    "qwen3:8b tag was removed after explicit operator authorization; veynit-qwen3:8b retains the shared 5.2 GB digest, so no disk space was reclaimed.",
+    "qwen3:8b and veynit-qwen3:8b were removed after explicit operator authorization; Ollama payload inventory fell from 6.7G to 1.8G (approximately 5.2 GB reclaimed).",
     "Calendar booking effect remains BLOCKED because current unconfigured bridge can return synthetic confirmation."
   ]
 }

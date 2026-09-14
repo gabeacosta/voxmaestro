@@ -57,11 +57,11 @@
     "present_before": true,
     "active_dependency": true,
     "removed": true,
-    "space_reclaimed_bytes": 0,
+    "space_reclaimed_bytes": 5225387864,
     "payload_bytes": 5225387864,
     "digest": "560d37d519f42d65e8bb0c15004c6155dd53130d22b024e87eb32705e8a5f80b",
     "shared_digest_alias": "veynit-qwen3:8b",
-    "removal_note": "qwen3:8b tag removed after explicit operator authorization; shared veynit-qwen3:8b tag retains the digest, so disk footprint did not change.",
+    "removal_note": "qwen3:8b and veynit-qwen3:8b tags removed after explicit operator authorization; Ollama inventory no longer contains the shared digest.",
     "dependencies": [
       "/Users/clue/openclaw-v2/config/settings.yaml:37",
       "/Users/clue/openclaw-v2/config/settings.yaml:42",
