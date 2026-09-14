@@ -194,3 +194,83 @@ def test_missing_package_message() -> None:
         raise PocketTTSNotInstalledError(
             "pocket-tts is not installed; pip install pocket-tts"
         )
+
+
+async def _speak_turn(backend: PocketTTSBackend, *, session_id: str, turn_id: str) -> list[Any]:
+    worker = TTSWorker(backend)
+    req = SynthesizeRequest(
+        text="hi",
+        turn_id=turn_id,
+        session_id=session_id,
+        voice=_manifest(session_id=session_id),
+        language="en",
+    )
+    return [chunk async for chunk in worker.stream(req)]
+
+
+@pytest.mark.asyncio
+async def test_reused_turn_id_is_not_poisoned_by_a_prior_sessions_normal_completion() -> None:
+    """Regression test: a completed stream must not silence a later,
+    unrelated session that happens to reuse the same turn_id string (e.g.
+    the literal "greeting" every session speaks first)."""
+    backend = _backend()
+
+    backend.open_session("sess_a", _manifest(session_id="sess_a"))
+    first = await _speak_turn(backend, session_id="sess_a", turn_id="greeting")
+    backend.close_session("sess_a")
+    assert len(first) == 2  # FakeTTSModel yields exactly two chunks per turn
+
+    backend.open_session("sess_b", _manifest(session_id="sess_b"))
+    second = await _speak_turn(backend, session_id="sess_b", turn_id="greeting")
+    backend.close_session("sess_b")
+
+    assert len(second) == 2, "a later session's identical turn_id must not be silently dropped"
+    assert backend._cancel == set()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_turn_id_does_not_leak_to_a_later_reuse() -> None:
+    """A real cancellation must still only affect the stream it targeted --
+    not poison a later, different session that reuses the same turn_id."""
+
+    class Held:
+        def __init__(self) -> None:
+            self.quantize = False
+            self.sample_rate = 24000
+            self.gate = threading.Event()
+
+        def get_state_for_audio_prompt(self, voice: str) -> dict[str, str]:
+            return {"voice": voice}
+
+        def generate_audio_stream(
+            self, model_state: dict[str, str], text_to_generate: str
+        ) -> Iterator[bytes]:
+            del model_state, text_to_generate
+            self.gate.wait(timeout=1.0)
+            yield b"late"
+
+    model = Held()
+    backend = _backend(model)
+    backend.open_session("sess_a", _manifest(session_id="sess_a"))
+    worker_a = TTSWorker(backend)
+    req_a = SynthesizeRequest(
+        text="hi", turn_id="t1", session_id="sess_a", voice=_manifest(session_id="sess_a"), language="en"
+    )
+
+    task = asyncio.create_task(worker_a.stream(req_a).__anext__())
+    await asyncio.sleep(0.05)
+    worker_a.cancel("t1")
+    model.gate.set()
+    with pytest.raises(StopAsyncIteration):
+        await task
+    backend.close_session("sess_a")
+    # The cancellation flag must not outlive the stream it targeted.
+    assert backend._cancel == set()
+
+    # A brand-new session reusing the same turn_id string must work cleanly.
+    # (`Held` only ever yields one raw item, so one AudioChunk is expected.)
+    backend.open_session("sess_b", _manifest(session_id="sess_b"))
+    second = await _speak_turn(backend, session_id="sess_b", turn_id="t1")
+    backend.close_session("sess_b")
+    assert len(second) == 1
+    assert second[0].is_last is True

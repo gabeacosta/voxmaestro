@@ -1,0 +1,13 @@
+=== git rev-parse HEAD ===
+8d959531e6cb4d02eaec0bfeeba802172fe528e3
+=== uname -a ===
+Linux vm 6.18.44-fc-v24 #1 SMP PREEMPT_DYNAMIC @0 x86_64 x86_64 x86_64 GNU/Linux
+=== sw_vers ===
+/bin/bash: line 12: sw_vers: command not found
+sw_vers: not available (this is a Linux cloud container, NOT the Mac mini specified in the handoff)
+=== python --version ===
+Python 3.11.15
+=== uv --version ===
+uv 0.8.17
+=== container identity note ===
+Running in Anthropic Claude Code remote execution container (Linux), not the target Mac mini M4 16GB. No physical microphone/speaker/audio device is present. This run establishes SOFTWARE baseline only.

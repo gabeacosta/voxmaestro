@@ -184,7 +184,12 @@ async def test_worker_streams_tagged_chunks() -> None:
     chunks = [chunk async for chunk in worker.stream(req)]
     assert [chunk.seq for chunk in chunks] == [0, 1]
     assert chunks[-1].is_last is True
-    assert backend.cancelled == ["t1"]
+    # A stream that finishes normally must not notify the backend's cancel()
+    # -- doing so would let a backend that tracks cancellation by turn_id
+    # alone (e.g. PocketTTSBackend) permanently flag a reused turn_id string
+    # (such as the literal "greeting" every session speaks first) as
+    # cancelled for good.
+    assert backend.cancelled == []
 
 
 @pytest.mark.asyncio

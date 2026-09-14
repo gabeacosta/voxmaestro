@@ -104,11 +104,21 @@ async def main() -> int:
         voice_for = make_voice_for(tts_backend)
 
     asr = None
+    mic_sample_rate = 24000
     if args.mic:
         from voxmaestro.asr import AsrIngress
         from voxmaestro.asr_whisper import WhisperASRBackend
 
-        asr = AsrIngress(WhisperASRBackend())
+        whisper_backend = WhisperASRBackend()
+        # The gateway must tag mic frames with the ASR backend's own session
+        # rate, not the TTS output rate -- these are unrelated streams. Left
+        # mismatched (gateway default 24000 vs WhisperASRBackend default
+        # 16000), the very first real mic frame raises inside
+        # WhisperASRBackend.accept() (see tests/test_asr_whisper.py::
+        # test_sample_rate_mismatch_rejected), which WebSocketGateway does
+        # not catch.
+        mic_sample_rate = whisper_backend.capabilities().sample_rates[0]
+        asr = AsrIngress(whisper_backend)
 
     adapter = WebSessionAdapter(
         runtime,
@@ -117,7 +127,7 @@ async def main() -> int:
         voice_for=voice_for,
         observe=lambda name, value: print(f"[metric] {name}={value:.1f}"),
     )
-    gateway = WebSocketGateway(adapter, asr=asr)
+    gateway = WebSocketGateway(adapter, asr=asr, mic_sample_rate=mic_sample_rate)
 
     import websockets
 

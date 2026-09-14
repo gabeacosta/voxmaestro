@@ -30,7 +30,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install benchmark runtime
-        run: pip install -e . pocket-tts pyyaml
+        run: pip install -e . pocket-tts pyyaml faster-whisper
       - name: Record host identity
         run: |
           mkdir -p evidence/wt-voice-tts-001
@@ -47,13 +47,20 @@ jobs:
           FULL_MATRIX: ${{ inputs.full_matrix || 'true' }}
         run: |
           set -euo pipefail
+          # sessions=1 has nothing to cross-talk into, so it never needs the
+          # (slower) real ASR check. sessions>1 needs it to leave
+          # TEST_INVALID -- see voxmaestro.tts.crosstalk.
           if [ "$FULL_MATRIX" = "true" ]; then
             for language in en es; do
               for sessions in 1 2 4 8; do
+                crosstalk_flag=""
+                if [ "$sessions" != "1" ]; then
+                  crosstalk_flag="--use-whisper-crosstalk-check"
+                fi
                 python examples/run_wt_voice_tts_001.py \
-                  --language "$language" --sessions "$sessions" --runs "$RUNS"
+                  --language "$language" --sessions "$sessions" --runs "$RUNS" $crosstalk_flag
                 python examples/run_wt_voice_tts_001.py \
-                  --language "$language" --sessions "$sessions" --runs "$RUNS" --quantize
+                  --language "$language" --sessions "$sessions" --runs "$RUNS" --quantize $crosstalk_flag
               done
             done
           else
