@@ -7,22 +7,26 @@
       "revision": "e1374ad6bf9b1b56afd743936b8faa33c409a75f",
       "role": "L1 worker challenger",
       "endpoint": "http://127.0.0.1:8080/v1",
-      "context_limit_configured": 8192,
+      "context_limit_configured": null,
+      "context_note": "mlx-lm 0.31.1 server has no context-limit CLI flag; the gateway prompt remained small, but an 8192-token server ceiling was not enforced.",
       "max_output_tokens": 120,
-      "process_command": "mlx_lm.server --model prism-ml/Ternary-Bonsai-4B-mlx-2bit --host 127.0.0.1 --port 8080 --decode-concurrency 1 --prompt-concurrency 1 --max-tokens 120 --temp 0 --prompt-cache-size 1 --prompt-cache-bytes 268435456",
+      "process_command": "mlx_lm.server --model prism-ml/Ternary-Bonsai-4B-mlx-2bit --host 127.0.0.1 --port 8080 --decode-concurrency 1 --prompt-concurrency 1 --max-tokens 120 --temp 0 --prompt-cache-size 0",
       "downloaded": true,
-      "health": "PASS"
+      "health": "PASS",
+      "admission": "FAIL"
     },
     {
       "repo": "prism-ml/Ternary-Bonsai-1.7B-mlx-2bit",
-      "revision": null,
-      "role": "L0 intent challenger",
-      "endpoint": "http://127.0.0.1:8081/v1",
-      "context_limit_configured": 4096,
-      "max_output_tokens": 64,
-      "process_command": "mlx_lm.server --model prism-ml/Ternary-Bonsai-1.7B-mlx-2bit --host 127.0.0.1 --port 8081 --decode-concurrency 1 --prompt-concurrency 1 --max-tokens 64 --temp 0",
-      "downloaded": false,
-      "health": "UNKNOWN"
+      "revision": "5f3e306330f636cfc6c6241b4850fae6711c5985",
+      "role": "L1 fallback challenger; L0 use remains untested",
+      "endpoint": "http://127.0.0.1:8080/v1",
+      "context_limit_configured": null,
+      "context_note": "mlx-lm 0.31.1 server has no context-limit CLI flag; L0 4096-token server ceiling was not enforced.",
+      "max_output_tokens": 120,
+      "process_command": "mlx_lm.server --model prism-ml/Ternary-Bonsai-1.7B-mlx-2bit --host 127.0.0.1 --port 8080 --decode-concurrency 1 --prompt-concurrency 1 --max-tokens 120 --temp 0 --prompt-cache-size 0",
+      "downloaded": true,
+      "health": "PASS",
+      "admission": "FAIL"
     }
   ]
 }

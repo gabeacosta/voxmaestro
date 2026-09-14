@@ -1,7 +1,9 @@
 {
-  "status": "PARTIAL",
-  "l0": {"p95_ms": null, "reason": "real Bonsai 1.7B was not launched"},
-  "l1": {"first_probe_ms": ">5000 (deadline failure)", "successful_probe_ms": "approximately 700", "measurement_method": "loopback curl through worker; coarse wall-clock observation"},
+  "status": "FAIL",
+  "l0": {"p95_ms": null, "reason": "Bonsai 1.7B was exercised as L1, not through the L0 intent shim"},
+  "l1_1_7b": {"p50_ms": 332.7, "p95_ms": 497.8, "range_ms": [261.6, 497.8], "semantic_admission": "FAIL"},
+  "l1_4b": {"p50_ms": 691.5, "p95_ms": 739.9, "range_ms": [543.4, 739.9], "semantic_admission": "FAIL"},
+  "measurement_method": "Ten sequential loopback requests through remote_worker.v0 with MLX prompt caching disabled; nearest-rank p95.",
   "admission_target_l0_p95_ms": 750,
   "no_claim_of_pass": true
 }
