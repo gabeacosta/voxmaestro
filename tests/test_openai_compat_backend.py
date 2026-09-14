@@ -73,9 +73,16 @@ def test_calls_one_pinned_chat_completion_endpoint() -> None:
     ]
 
 
-def test_plain_http_must_stay_loopback() -> None:
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "http://192.168.1.10:8080/v1",
+        "https://models.example.com/v1",
+    ],
+)
+def test_native_inference_endpoint_must_stay_loopback(endpoint: str) -> None:
     with pytest.raises(ValueError, match="loopback"):
-        OpenAICompatInferenceBackend(endpoint="http://192.168.1.10:8080/v1", model="bonsai")
+        OpenAICompatInferenceBackend(endpoint=endpoint, model="bonsai")
 
 
 def test_no_model_identity_is_rejected() -> None:
