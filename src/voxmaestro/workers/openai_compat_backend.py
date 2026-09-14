@@ -33,13 +33,13 @@ def _normalize_endpoint(url: str) -> str:
         raise ValueError("endpoint hostname is required")
 
     host = parsed.hostname.lower()
-    if parsed.scheme == "http" and host not in {"127.0.0.1", "localhost", "::1"}:
-        raise ValueError("plain HTTP inference endpoints must be loopback-only")
+    if host not in {"127.0.0.1", "localhost", "::1"}:
+        raise ValueError("native inference endpoint must be loopback-only")
     return url.rstrip("/")
 
 
 class OpenAICompatInferenceBackend:
-    """One fixed model behind one fixed OpenAI-compatible endpoint.
+    """One fixed model behind one fixed OpenAI-compatible loopback endpoint.
 
     ``endpoint`` may be a base API URL such as ``http://127.0.0.1:8080/v1``
     or the full ``.../chat/completions`` URL. No API key is accepted because
