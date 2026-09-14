@@ -19,9 +19,9 @@ on:
 
 jobs:
   qualify:
-    # Existing voice-host runner lane. The scoped push trigger exists only to
-    # launch a bounded hardware qualification from environments without
-    # workflow_dispatch support. Ordinary pushes do not run this job.
+    # Existing voice-host runner lane. The scoped push trigger is deliberately
+    # bounded to the single-session quantized lane. A full matrix is admitted
+    # only by explicit workflow_dispatch after the bounded lane is clean.
     runs-on: [self-hosted, voice]
     timeout-minutes: 120
     steps:
@@ -44,7 +44,9 @@ jobs:
       - name: Run qualification matrix
         env:
           RUNS: ${{ inputs.runs || '3' }}
-          FULL_MATRIX: ${{ inputs.full_matrix || 'true' }}
+          # Push-triggered qualification is always the bounded first lane.
+          # Only an explicit manual dispatch can admit the full matrix.
+          FULL_MATRIX: ${{ github.event_name == 'workflow_dispatch' && inputs.full_matrix || 'false' }}
         run: |
           set -euo pipefail
           # sessions=1 has nothing to cross-talk into, so it never needs the
