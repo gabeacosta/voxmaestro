@@ -27,6 +27,22 @@
       "downloaded": true,
       "health": "PASS",
       "admission": "FAIL"
+    },
+    {
+      "repo": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+      "upstream": "Qwen/Qwen3-4B-Instruct-2507",
+      "revision": "50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b",
+      "role": "L1 constrained deterministic verbalizer",
+      "endpoint": "http://127.0.0.1:8080/v1",
+      "remote_worker_endpoint": "http://127.0.0.1:8091/v1/work",
+      "context_limit_configured": null,
+      "context_note": "Server ceiling not enforced; prompt and semantic context each bounded to 16384 bytes in VoxMaestro.",
+      "max_output_tokens": 120,
+      "process_command": "mlx_lm.server --model mlx-community/Qwen3-4B-Instruct-2507-4bit --host 127.0.0.1 --port 8080 --decode-concurrency 1 --prompt-concurrency 1 --max-tokens 120 --temp 0 --prompt-cache-size 0",
+      "downloaded": true,
+      "health": "PASS",
+      "admission": "PASS",
+      "admission_scope": "constrained deterministic L1 verbalizer"
     }
   ]
 }

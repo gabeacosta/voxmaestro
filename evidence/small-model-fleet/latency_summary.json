@@ -1,9 +1,41 @@
 {
-  "status": "FAIL",
-  "l0": {"p95_ms": null, "reason": "Bonsai 1.7B was exercised as L1, not through the L0 intent shim"},
-  "l1_1_7b": {"p50_ms": 332.7, "p95_ms": 497.8, "range_ms": [261.6, 497.8], "semantic_admission": "FAIL"},
-  "l1_4b": {"p50_ms": 691.5, "p95_ms": 739.9, "range_ms": [543.4, 739.9], "semantic_admission": "FAIL"},
+  "status": "PARTIAL",
+  "l0": {
+    "p95_ms": null,
+    "reason": "Bonsai 1.7B was exercised as L1, not through the L0 intent shim"
+  },
+  "l1_1_7b": {
+    "p50_ms": 332.7,
+    "p95_ms": 497.8,
+    "range_ms": [
+      261.6,
+      497.8
+    ],
+    "semantic_admission": "FAIL"
+  },
+  "l1_4b": {
+    "p50_ms": 691.5,
+    "p95_ms": 739.9,
+    "range_ms": [
+      543.4,
+      739.9
+    ],
+    "semantic_admission": "FAIL"
+  },
   "measurement_method": "Ten sequential loopback requests through remote_worker.v0 with MLX prompt caching disabled; nearest-rank p95.",
   "admission_target_l0_p95_ms": 750,
-  "no_claim_of_pass": true
+  "l1_qwen3_4b_instruct": {
+    "p50_ms": 1362.6,
+    "p95_ms": 1559.7,
+    "range_ms": [
+      1225.7,
+      1599.1
+    ],
+    "requests": 33,
+    "semantic_admission": "PASS",
+    "scope": "constrained deterministic verbalizer"
+  },
+  "measurement_method_qwen": "Three repetitions of 11 VoiceScheduleAI cases through remote_worker.v0 with the exact checked-in config prompt and MLX prompt caching disabled; nearest-rank p95.",
+  "l1_constrained_pass": true,
+  "no_claim_of_full_program_pass": true
 }

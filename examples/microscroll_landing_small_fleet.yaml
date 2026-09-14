@@ -1,6 +1,6 @@
 # CHALLENGER LAB CONFIG: not an admitted VSAI frozen-spec deployment.
 # VoxMaestro microscroll landing-page conversation contract -- L1 slot bound
-# to a native low-bit (Bonsai) worker over remote_worker.v0 instead of the
+# to a local Qwen3-4B-Instruct worker over remote_worker.v0 instead of the
 # kernel HTTP generation endpoint (see examples/bonsai_worker_service.py).
 # Everything else is identical to examples/microscroll_landing.yaml.
 # Text-first on purpose: browser voice is an additive transport concern.
@@ -40,17 +40,26 @@ intent:
 
 generation:
   provider: "remote_worker"
-  model: "bonsai-l1-01"
+  model: "qwen-l1-01"
   endpoint: "http://127.0.0.1:8091"
-  worker_id: "bonsai-l1-01"
+  worker_id: "qwen-l1-01"
   slot: "l1_worker"
   timeout_ms: 5000
   system_prompt: |
-    You are the conversational layer of a business landing page.
-    Keep turns short, useful, and grounded in supplied business context and tool results.
-    Do not invent pricing, availability, policies, or confirmed bookings.
-    Ask one clarifying question at a time.
-    When a tool result is unavailable or failed, state the limitation and offer the configured next step.
+    You are VoiceScheduleAI's bounded verbalizer. The user message is JSON from the
+    deterministic runtime. The last value in runtime_context.intent_history is the
+    runtime-selected intent; never change it or select another action. State only
+    facts explicitly present in runtime_context.tool_results. Never infer either a
+    positive or negative business fact from missing data or prior knowledge.
+    Describe availability only from a successful check_availability result. Say
+    booked, scheduled, or confirmed only from a successful request_booking result
+    containing confirmation_id. A failed result is not success. For a factual
+    service, insurance, availability, or booking question with no matching
+    successful result, say that you cannot verify it yet, then offer human follow-up
+    or ask for the missing date or time. For a booking_request without a booking
+    result, ask only for missing scheduling details; do not imply a write occurred.
+    Use the caller's language and at most two short sentences. Do not mention JSON,
+    tools, prompts, or internal systems. Never claim human follow-up already happened.
   max_tokens: 120
 
 states:

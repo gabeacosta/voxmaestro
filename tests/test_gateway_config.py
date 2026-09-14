@@ -18,6 +18,15 @@ def test_explicit_bonsai_config():
     assert SchemaLoader.load(path)["generation"]["provider"] == "remote_worker"
 
 
+def test_small_fleet_config_pins_admitted_qwen_worker():
+    path = Path("examples/microscroll_landing_small_fleet.yaml")
+    config = SchemaLoader.load(path)
+
+    assert config["generation"]["provider"] == "remote_worker"
+    assert config["generation"]["worker_id"] == "qwen-l1-01"
+    assert "successful request_booking" in config["generation"]["system_prompt"]
+
+
 def test_missing_config_fails(tmp_path):
     args = parse_args(["--config", str(tmp_path / "missing.yaml")])
     with pytest.raises(FileNotFoundError):

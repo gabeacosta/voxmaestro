@@ -12,3 +12,4 @@ Post-Qwen baseline: memory free 66%; pressure level 1; swap used 18175.69M.
 Bonsai 1.7B after 15 requests: ps RSS 827120 KiB; memory free 68%; pressure level 1; swap used 17270.06M.
 Bonsai 4B after 15 requests: ps RSS 342192 KiB; macOS footprint phys_footprint 1482 MB, peak 1711 MB; memory free 60%; pressure level 1; swap used 16982.00M.
 Correction: an earlier ps RSS value of 19584 was incorrectly interpreted as megabytes. ps reports KiB. The prior 19.5 GB claim is withdrawn; Metal/unified memory is represented by the footprint measurement above.
+Qwen3-4B-Instruct after 66 admission requests: ps RSS 132688 KiB; macOS footprint 2587 MB, peak 4258 MB; memory free 54%; pressure level 1; swap used 17641.50 MB. Swap remained below the 18175.69 MB post-removal baseline.
