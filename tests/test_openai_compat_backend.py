@@ -57,7 +57,18 @@ def test_calls_one_pinned_chat_completion_endpoint() -> None:
         backend = OpenAICompatInferenceBackend(endpoint=fake.endpoint, model="ternary-bonsai-27b")
         result = backend.generate(
             "What are your hours?",
-            {"system_prompt": "Answer only from supplied business facts."},
+            {
+                "system_prompt": "Answer only from supplied business facts.",
+                "state": "tool_call",
+                "previous_state": "engage",
+                "intent_history": ["availability_question"],
+                "tool_results": {
+                    "check_availability": {"success": True, "slots": ["Tuesday 3 PM"]}
+                },
+                "conversation_history": [{"role": "user", "content": "Tuesday?"}],
+                "call_id": "must-not-reach-model",
+                "metadata": {"phone": "must-not-reach-model"},
+            },
             {"max_tokens": 48, "deadline_ms": 2000},
         )
 
@@ -69,7 +80,30 @@ def test_calls_one_pinned_chat_completion_endpoint() -> None:
     assert fake.requests[0]["body"]["stream"] is False
     assert fake.requests[0]["body"]["messages"] == [
         {"role": "system", "content": "Answer only from supplied business facts."},
-        {"role": "user", "content": "What are your hours?"},
+        {
+            "role": "user",
+            "content": json.dumps(
+                {
+                    "current_request": "What are your hours?",
+                    "runtime_context": {
+                        "state": "tool_call",
+                        "previous_state": "engage",
+                        "intent_history": ["availability_question"],
+                        "tool_results": {
+                            "check_availability": {
+                                "success": True,
+                                "slots": ["Tuesday 3 PM"],
+                            }
+                        },
+                        "conversation_history": [
+                            {"role": "user", "content": "Tuesday?"}
+                        ],
+                    },
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+        },
     ]
 
 
@@ -106,3 +140,16 @@ def test_full_chat_completion_url_is_not_duplicated() -> None:
         assert backend.generate("hello", {}, {}) == "native reply"
 
     assert fake.requests[0]["path"] == "/v1/chat/completions"
+
+
+def test_oversized_semantic_context_fails_before_model_request() -> None:
+    with _FakeChatServer() as fake:
+        backend = OpenAICompatInferenceBackend(endpoint=fake.endpoint, model="bounded-worker")
+        with pytest.raises(LocalInferenceError, match="context exceeds"):
+            backend.generate(
+                "hello",
+                {"tool_results": {"retrieval": {"text": "x" * 20_000}}},
+                {},
+            )
+
+    assert fake.requests == []
