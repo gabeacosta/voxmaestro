@@ -16,17 +16,28 @@ The model path is `/Users/clue/models/vsai-intent-mlx`; config identifies `Qwen2
 
 POST `/v1/intent` requires `X-Api-Key`, accepts `{prompt, max_tokens?, temperature?}`, and returns `{success, intent, tier, latency_ms, model, request_id}` where `intent` is a JSON string. It neither accepts runtime-owned legal intents nor enforces the proposed strict output contract. It extracts JSON from prose, repairs truncated intents and cascades MLX → local Ollama (`vsai-intent-v7:latest`) → VPS. Its OpenAI-compatible endpoint delegates to this cascade. Therefore it cannot be directly reused as the admitted fail-closed semantic lane. No service replacement or spec promotion was performed.
 
-## Existing Nomic — healthy smoke, retrieval qualification pending
+## Existing Nomic — KEEP for the embedding lane
 
 Ollama `0.33.3` exposes `nomic-embed-text:latest` at `/api/embed`, digest `0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f`. Inventory: 137M, F16, context 2048, packed payload 274302450 bytes.
 
-A bounded batch of duplicate English scheduling query plus Spanish scheduling query returned three 768-dimensional vectors. Duplicate vectors were exactly equal. Server duration was 599698625 ns including 560021292 ns load time. Probe requested one-minute residency. This is one synthetic-text batch, not corpus relevance, p50/p95 latency, memory admission or proven Spanish retrieval quality. Keep the existing model as first retrieval candidate; disposition remains BLOCKED pending qualification. No new embedding model downloaded.
+A pinned 12-document, 24-query EN/ES admission corpus was derived from the
+VoiceScheduleAI site at commit `a29163993af3129372f39136398295262071e3b6`
+and the checked-in runtime safety policy. Nomic achieved 87.5% top-one
+accuracy, 100% recall@3 in each language, and 0.923611 MRR. Identical inputs
+returned exactly equal vectors. Forty warm loopback requests measured 10.281 ms
+p50 and 12.924 ms p95.
 
-## Qwen3:8b — preserve active dependency
+The resident service is admitted as `KEEP` for embedding and deterministic
+in-memory ranking. No model was downloaded. This does not admit a production
+tenant corpus, persistent index, or VoxMaestro retrieval route; those assets do
+not yet exist. Full results and provenance are in
+`nomic_retrieval_admission.json`.
+
+## Qwen3:8b — removed by explicit operator authorization
 
 Ollama inventory reports 5225387864 packed bytes, digest `560d37d519f42d65e8bb0c15004c6155dd53130d22b024e87eb32705e8a5f80b`, shared with `veynit-qwen3:8b`. This is not reclaimable disk measurement and is not RSS.
 
-Production LaunchAgent `ai.openclaw.brain` runs `/Users/clue/openclaw-v2/bin/launch-brain.sh`. That codebase pins `ollama/qwen3:8b` in `config/settings.yaml` (lines 37,42), `src/core/brain.py` control-plane branch (line 1430) and organic fallback (line 1463). KORA settings also depend on the Mac Ollama relay. No removal was attempted; reclaimed bytes = 0.
+Production LaunchAgent `ai.openclaw.brain` runs `/Users/clue/openclaw-v2/bin/launch-brain.sh`. That codebase pinned `ollama/qwen3:8b` in `config/settings.yaml` (lines 37,42), `src/core/brain.py` control-plane branch (line 1430) and organic fallback (line 1463). KORA settings also referenced the Mac Ollama relay. The operator stated Clue now uses cloud dependencies and explicitly authorized removal of both `qwen3:8b` and `veynit-qwen3:8b`. Both aliases shared the same digest and were removed with `ollama rm`; approximately 5225387864 packed bytes were reclaimed.
 
 ## Model cache and calendar
 

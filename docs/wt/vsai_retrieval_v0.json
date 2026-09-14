@@ -1,0 +1,145 @@
+{
+  "schema_version": "vsai-retrieval-admission.v0",
+  "purpose": "Synthetic bilingual model-admission corpus; not an active production tenant index.",
+  "provenance": {
+    "sources": [
+      {
+        "id": "vsai_site",
+        "path": "/Users/clue/gentic-sites/smb-funnel/vsai-site/src/App.jsx",
+        "repo_sha": "a29163993af3129372f39136398295262071e3b6",
+        "sha256": "e9db7d91456e0e4f2294261a9681d0e0998f50a1079d6bd1235fc6e003db8795",
+        "lines": "26-28,47-48,82,91-100"
+      },
+      {
+        "id": "runtime_policy",
+        "path": "examples/microscroll_landing_small_fleet.yaml",
+        "repo_sha": "333131858147ae9a8adfaf8b2150d39307ce1de9",
+        "sha256": "1bc0fac161dc35fdaee8d257be88ab07a8432afd55acb18a5001635d99a49330",
+        "lines": "48-62"
+      }
+    ],
+    "translation_note": "Spanish passages are bounded human-authored translations of the cited English source facts for model admission.",
+    "limitations": "These passages test embedding suitability. They do not establish any dental tenant's actual services, insurance contracts, availability, or booking state."
+  },
+  "documents": [
+    {
+      "id": "en_new_patient",
+      "language": "en",
+      "category": "dental_faq",
+      "text": "VoiceScheduleAI handles new-patient intake for dental practices.",
+      "source_ids": ["vsai_site"]
+    },
+    {
+      "id": "en_insurance",
+      "language": "en",
+      "category": "insurance_policy",
+      "text": "Insurance acceptance varies by dental practice and must be verified from that practice before it is stated to a caller.",
+      "source_ids": ["runtime_policy"]
+    },
+    {
+      "id": "en_scheduling",
+      "language": "en",
+      "category": "scheduling",
+      "text": "For dental appointment scheduling, VoiceScheduleAI checks requested dates and times against a connected calendar and can submit a booking request during the conversation.",
+      "source_ids": ["vsai_site", "runtime_policy"]
+    },
+    {
+      "id": "en_handoff",
+      "language": "en",
+      "category": "handoff_policy",
+      "text": "If the AI cannot handle a call, it tells the caller a team member will follow up and sends the team the conversation context.",
+      "source_ids": ["vsai_site"]
+    },
+    {
+      "id": "en_calendars",
+      "language": "en",
+      "category": "business_faq",
+      "text": "VoiceScheduleAI integrates with Google Calendar, Outlook, and compatible scheduling tools.",
+      "source_ids": ["vsai_site"]
+    },
+    {
+      "id": "en_customization",
+      "language": "en",
+      "category": "business_faq",
+      "text": "Each business can configure its greeting, qualifying questions, terminology, and booking rules.",
+      "source_ids": ["vsai_site"]
+    },
+    {
+      "id": "es_new_patient",
+      "language": "es",
+      "category": "dental_faq",
+      "text": "VoiceScheduleAI gestiona la admisión de pacientes nuevos para consultorios dentales.",
+      "source_ids": ["vsai_site"]
+    },
+    {
+      "id": "es_insurance",
+      "language": "es",
+      "category": "insurance_policy",
+      "text": "La aceptación de seguros varía según el consultorio dental y debe verificarse antes de informarla a la persona que llama.",
+      "source_ids": ["runtime_policy"]
+    },
+    {
+      "id": "es_scheduling",
+      "language": "es",
+      "category": "scheduling",
+      "text": "Para programar una cita dental, VoiceScheduleAI compara la fecha y hora solicitadas con un calendario conectado y puede enviar una solicitud de reserva durante la conversación.",
+      "source_ids": ["vsai_site", "runtime_policy"]
+    },
+    {
+      "id": "es_handoff",
+      "language": "es",
+      "category": "handoff_policy",
+      "text": "Si la IA no puede resolver una llamada, informa que un miembro del equipo dará seguimiento y envía el contexto de la conversación.",
+      "source_ids": ["vsai_site"]
+    },
+    {
+      "id": "es_calendars",
+      "language": "es",
+      "category": "business_faq",
+      "text": "VoiceScheduleAI se integra con Google Calendar, Outlook y herramientas de programación compatibles.",
+      "source_ids": ["vsai_site"]
+    },
+    {
+      "id": "es_customization",
+      "language": "es",
+      "category": "business_faq",
+      "text": "Cada negocio puede configurar su saludo, preguntas de calificación, terminología y reglas de reserva.",
+      "source_ids": ["vsai_site"]
+    }
+  ],
+  "queries": [
+    {"id": "en_schedule_1", "language": "en", "expected_id": "en_scheduling", "text": "Can you book a dental appointment for Tuesday?"},
+    {"id": "en_patient_1", "language": "en", "expected_id": "en_new_patient", "text": "Can the service handle intake for a new dental patient?"},
+    {"id": "en_insurance_1", "language": "en", "expected_id": "en_insurance", "text": "Does this dental office accept Delta Dental insurance?"},
+    {"id": "en_handoff_1", "language": "en", "expected_id": "en_handoff", "text": "What happens when the AI cannot resolve the call?"},
+    {"id": "en_calendar_1", "language": "en", "expected_id": "en_calendars", "text": "Which calendar platforms can be connected?"},
+    {"id": "en_custom_1", "language": "en", "expected_id": "en_customization", "text": "Can a business change the greeting and booking rules?"},
+    {"id": "es_schedule_1", "language": "es", "expected_id": "es_scheduling", "text": "¿Puede programar una cita dental para el martes?"},
+    {"id": "es_patient_1", "language": "es", "expected_id": "es_new_patient", "text": "¿Puede gestionar la admisión de un paciente dental nuevo?"},
+    {"id": "es_insurance_1", "language": "es", "expected_id": "es_insurance", "text": "¿Este consultorio acepta el seguro Delta Dental?"},
+    {"id": "es_handoff_1", "language": "es", "expected_id": "es_handoff", "text": "¿Qué sucede si la IA no puede resolver la llamada?"},
+    {"id": "es_calendar_1", "language": "es", "expected_id": "es_calendars", "text": "¿Qué plataformas de calendario se pueden conectar?"},
+    {"id": "es_custom_1", "language": "es", "expected_id": "es_customization", "text": "¿Puede el negocio cambiar el saludo y las reglas de reserva?"},
+    {"id": "en_schedule_2", "language": "en", "expected_id": "en_scheduling", "text": "I would like to come in next Wednesday morning."},
+    {"id": "en_patient_2", "language": "en", "expected_id": "en_new_patient", "text": "I am a first-time patient; can the receptionist collect my intake details?"},
+    {"id": "en_insurance_2", "language": "en", "expected_id": "en_insurance", "text": "Which dental plans are in network at this office?"},
+    {"id": "en_handoff_2", "language": "en", "expected_id": "en_handoff", "text": "Can someone from the office call me back if the AI cannot help?"},
+    {"id": "en_calendar_2", "language": "en", "expected_id": "en_calendars", "text": "Does the scheduling system work with Outlook?"},
+    {"id": "en_custom_2", "language": "en", "expected_id": "en_customization", "text": "Can we customize the questions the receptionist asks?"},
+    {"id": "es_schedule_2", "language": "es", "expected_id": "es_scheduling", "text": "Quisiera una cita el próximo miércoles por la mañana."},
+    {"id": "es_patient_2", "language": "es", "expected_id": "es_new_patient", "text": "Es mi primera visita; ¿puede recopilar mis datos de admisión?"},
+    {"id": "es_insurance_2", "language": "es", "expected_id": "es_insurance", "text": "¿Qué planes dentales están dentro de la red de este consultorio?"},
+    {"id": "es_handoff_2", "language": "es", "expected_id": "es_handoff", "text": "¿Puede llamarme alguien del consultorio si la IA no puede ayudar?"},
+    {"id": "es_calendar_2", "language": "es", "expected_id": "es_calendars", "text": "¿El sistema de citas funciona con Outlook?"},
+    {"id": "es_custom_2", "language": "es", "expected_id": "es_customization", "text": "¿Podemos personalizar las preguntas que hace la recepcionista?"}
+  ],
+  "thresholds": {
+    "dimensions": 768,
+    "top1_accuracy_min": 0.8,
+    "recall_at_3_min": 1.0,
+    "mrr_min": 0.85,
+    "per_language_recall_at_3_min": 1.0,
+    "steady_p95_ms_max": 250.0,
+    "identical_vector_stability": true
+  }
+}

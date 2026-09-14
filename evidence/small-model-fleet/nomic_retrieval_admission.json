@@ -1,0 +1,575 @@
+{
+  "program": "VM-VSAI-RETRIEVAL-001",
+  "observed_date": "2026-09-14",
+  "model": "nomic-embed-text:latest",
+  "model_digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
+  "serving_library": "Ollama 0.33.3",
+  "endpoint": "http://127.0.0.1:11434/api/embed",
+  "endpoint_scope": "loopback-only",
+  "corpus": {
+    "schema_version": "vsai-retrieval-admission.v0",
+    "purpose": "Synthetic bilingual model-admission corpus; not an active production tenant index.",
+    "provenance": {
+      "sources": [
+        {
+          "id": "vsai_site",
+          "path": "/Users/clue/gentic-sites/smb-funnel/vsai-site/src/App.jsx",
+          "repo_sha": "a29163993af3129372f39136398295262071e3b6",
+          "sha256": "e9db7d91456e0e4f2294261a9681d0e0998f50a1079d6bd1235fc6e003db8795",
+          "lines": "26-28,47-48,82,91-100"
+        },
+        {
+          "id": "runtime_policy",
+          "path": "examples/microscroll_landing_small_fleet.yaml",
+          "repo_sha": "333131858147ae9a8adfaf8b2150d39307ce1de9",
+          "sha256": "1bc0fac161dc35fdaee8d257be88ab07a8432afd55acb18a5001635d99a49330",
+          "lines": "48-62"
+        }
+      ],
+      "translation_note": "Spanish passages are bounded human-authored translations of the cited English source facts for model admission.",
+      "limitations": "These passages test embedding suitability. They do not establish any dental tenant's actual services, insurance contracts, availability, or booking state."
+    },
+    "document_count": 12,
+    "query_count": 24,
+    "corpus_bytes": 8127,
+    "estimated_float32_vector_bytes": 36864
+  },
+  "embedding": {
+    "dimensions": 768,
+    "document_batch_metrics": {
+      "total_duration_ns": 134650583,
+      "load_duration_ns": 2361750,
+      "prompt_eval_count": 411
+    },
+    "query_batch_metrics": {
+      "total_duration_ns": 162032875,
+      "load_duration_ns": 478959,
+      "prompt_eval_count": 483
+    },
+    "startup_batch_wall_ms": 136.5,
+    "identical_vector_stability": true
+  },
+  "relevance": {
+    "language_filter": "runtime-owned exact en/es filter applied before ranking",
+    "top1_accuracy": 0.875,
+    "recall_at_3": 1.0,
+    "mrr": 0.923611,
+    "per_language_recall_at_3": {
+      "en": 1.0,
+      "es": 1.0
+    },
+    "queries": [
+      {
+        "query_id": "en_schedule_1",
+        "language": "en",
+        "expected_id": "en_scheduling",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "en_scheduling",
+            "score": 0.73638221
+          },
+          {
+            "id": "en_new_patient",
+            "score": 0.64220801
+          },
+          {
+            "id": "en_insurance",
+            "score": 0.62195018
+          }
+        ]
+      },
+      {
+        "query_id": "en_patient_1",
+        "language": "en",
+        "expected_id": "en_new_patient",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "en_new_patient",
+            "score": 0.80004873
+          },
+          {
+            "id": "en_insurance",
+            "score": 0.66727806
+          },
+          {
+            "id": "en_scheduling",
+            "score": 0.62970317
+          }
+        ]
+      },
+      {
+        "query_id": "en_insurance_1",
+        "language": "en",
+        "expected_id": "en_insurance",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "en_insurance",
+            "score": 0.6793059
+          },
+          {
+            "id": "en_new_patient",
+            "score": 0.58601566
+          },
+          {
+            "id": "en_scheduling",
+            "score": 0.55102272
+          }
+        ]
+      },
+      {
+        "query_id": "en_handoff_1",
+        "language": "en",
+        "expected_id": "en_handoff",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "en_handoff",
+            "score": 0.80629927
+          },
+          {
+            "id": "en_scheduling",
+            "score": 0.57969055
+          },
+          {
+            "id": "en_calendars",
+            "score": 0.57384427
+          }
+        ]
+      },
+      {
+        "query_id": "en_calendar_1",
+        "language": "en",
+        "expected_id": "en_calendars",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "en_calendars",
+            "score": 0.7411387
+          },
+          {
+            "id": "en_scheduling",
+            "score": 0.62604144
+          },
+          {
+            "id": "en_customization",
+            "score": 0.57000001
+          }
+        ]
+      },
+      {
+        "query_id": "en_custom_1",
+        "language": "en",
+        "expected_id": "en_customization",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "en_customization",
+            "score": 0.79459785
+          },
+          {
+            "id": "en_scheduling",
+            "score": 0.60947727
+          },
+          {
+            "id": "en_calendars",
+            "score": 0.57279781
+          }
+        ]
+      },
+      {
+        "query_id": "es_schedule_1",
+        "language": "es",
+        "expected_id": "es_scheduling",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "es_scheduling",
+            "score": 0.74065754
+          },
+          {
+            "id": "es_new_patient",
+            "score": 0.65758017
+          },
+          {
+            "id": "es_insurance",
+            "score": 0.64220023
+          }
+        ]
+      },
+      {
+        "query_id": "es_patient_1",
+        "language": "es",
+        "expected_id": "es_new_patient",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "es_new_patient",
+            "score": 0.76238906
+          },
+          {
+            "id": "es_insurance",
+            "score": 0.69377525
+          },
+          {
+            "id": "es_scheduling",
+            "score": 0.64109
+          }
+        ]
+      },
+      {
+        "query_id": "es_insurance_1",
+        "language": "es",
+        "expected_id": "es_insurance",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "es_insurance",
+            "score": 0.77336186
+          },
+          {
+            "id": "es_new_patient",
+            "score": 0.65138635
+          },
+          {
+            "id": "es_scheduling",
+            "score": 0.64988435
+          }
+        ]
+      },
+      {
+        "query_id": "es_handoff_1",
+        "language": "es",
+        "expected_id": "es_handoff",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "es_handoff",
+            "score": 0.78975639
+          },
+          {
+            "id": "es_scheduling",
+            "score": 0.60056864
+          },
+          {
+            "id": "es_insurance",
+            "score": 0.58694778
+          }
+        ]
+      },
+      {
+        "query_id": "es_calendar_1",
+        "language": "es",
+        "expected_id": "es_calendars",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "es_calendars",
+            "score": 0.69130767
+          },
+          {
+            "id": "es_scheduling",
+            "score": 0.66697806
+          },
+          {
+            "id": "es_customization",
+            "score": 0.59956079
+          }
+        ]
+      },
+      {
+        "query_id": "es_custom_1",
+        "language": "es",
+        "expected_id": "es_customization",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "es_customization",
+            "score": 0.74040975
+          },
+          {
+            "id": "es_handoff",
+            "score": 0.60636547
+          },
+          {
+            "id": "es_insurance",
+            "score": 0.59487735
+          }
+        ]
+      },
+      {
+        "query_id": "en_schedule_2",
+        "language": "en",
+        "expected_id": "en_scheduling",
+        "rank": 3,
+        "top3": [
+          {
+            "id": "en_calendars",
+            "score": 0.56649952
+          },
+          {
+            "id": "en_new_patient",
+            "score": 0.56499596
+          },
+          {
+            "id": "en_scheduling",
+            "score": 0.56278134
+          }
+        ]
+      },
+      {
+        "query_id": "en_patient_2",
+        "language": "en",
+        "expected_id": "en_new_patient",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "en_new_patient",
+            "score": 0.66482205
+          },
+          {
+            "id": "en_scheduling",
+            "score": 0.62478914
+          },
+          {
+            "id": "en_insurance",
+            "score": 0.59129633
+          }
+        ]
+      },
+      {
+        "query_id": "en_insurance_2",
+        "language": "en",
+        "expected_id": "en_insurance",
+        "rank": 3,
+        "top3": [
+          {
+            "id": "en_new_patient",
+            "score": 0.67948127
+          },
+          {
+            "id": "en_scheduling",
+            "score": 0.65493314
+          },
+          {
+            "id": "en_insurance",
+            "score": 0.64340479
+          }
+        ]
+      },
+      {
+        "query_id": "en_handoff_2",
+        "language": "en",
+        "expected_id": "en_handoff",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "en_handoff",
+            "score": 0.76979008
+          },
+          {
+            "id": "en_scheduling",
+            "score": 0.60472978
+          },
+          {
+            "id": "en_calendars",
+            "score": 0.60069363
+          }
+        ]
+      },
+      {
+        "query_id": "en_calendar_2",
+        "language": "en",
+        "expected_id": "en_calendars",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "en_calendars",
+            "score": 0.70813952
+          },
+          {
+            "id": "en_scheduling",
+            "score": 0.6253166
+          },
+          {
+            "id": "en_customization",
+            "score": 0.58688068
+          }
+        ]
+      },
+      {
+        "query_id": "en_custom_2",
+        "language": "en",
+        "expected_id": "en_customization",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "en_customization",
+            "score": 0.63829245
+          },
+          {
+            "id": "en_scheduling",
+            "score": 0.60950979
+          },
+          {
+            "id": "en_calendars",
+            "score": 0.59901059
+          }
+        ]
+      },
+      {
+        "query_id": "es_schedule_2",
+        "language": "es",
+        "expected_id": "es_scheduling",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "es_scheduling",
+            "score": 0.5990674
+          },
+          {
+            "id": "es_handoff",
+            "score": 0.55913152
+          },
+          {
+            "id": "es_calendars",
+            "score": 0.54858909
+          }
+        ]
+      },
+      {
+        "query_id": "es_patient_2",
+        "language": "es",
+        "expected_id": "es_new_patient",
+        "rank": 2,
+        "top3": [
+          {
+            "id": "es_insurance",
+            "score": 0.64521822
+          },
+          {
+            "id": "es_new_patient",
+            "score": 0.61829735
+          },
+          {
+            "id": "es_customization",
+            "score": 0.60330547
+          }
+        ]
+      },
+      {
+        "query_id": "es_insurance_2",
+        "language": "es",
+        "expected_id": "es_insurance",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "es_insurance",
+            "score": 0.71786874
+          },
+          {
+            "id": "es_new_patient",
+            "score": 0.68770773
+          },
+          {
+            "id": "es_scheduling",
+            "score": 0.67700273
+          }
+        ]
+      },
+      {
+        "query_id": "es_handoff_2",
+        "language": "es",
+        "expected_id": "es_handoff",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "es_handoff",
+            "score": 0.71561885
+          },
+          {
+            "id": "es_insurance",
+            "score": 0.6718351
+          },
+          {
+            "id": "es_new_patient",
+            "score": 0.60322532
+          }
+        ]
+      },
+      {
+        "query_id": "es_calendar_2",
+        "language": "es",
+        "expected_id": "es_calendars",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "es_calendars",
+            "score": 0.66509905
+          },
+          {
+            "id": "es_handoff",
+            "score": 0.60855564
+          },
+          {
+            "id": "es_scheduling",
+            "score": 0.60009897
+          }
+        ]
+      },
+      {
+        "query_id": "es_custom_2",
+        "language": "es",
+        "expected_id": "es_customization",
+        "rank": 1,
+        "top3": [
+          {
+            "id": "es_customization",
+            "score": 0.61171333
+          },
+          {
+            "id": "es_insurance",
+            "score": 0.59699003
+          },
+          {
+            "id": "es_scheduling",
+            "score": 0.59533958
+          }
+        ]
+      }
+    ]
+  },
+  "latency": {
+    "requests": 40,
+    "wall_p50_ms": 10.281,
+    "wall_p95_ms": 12.924,
+    "wall_range_ms": [
+      9.036,
+      13.836
+    ],
+    "server_p50_ms": 9.145,
+    "server_p95_ms": 11.491
+  },
+  "thresholds": {
+    "dimensions": 768,
+    "top1_accuracy_min": 0.8,
+    "recall_at_3_min": 1.0,
+    "mrr_min": 0.85,
+    "per_language_recall_at_3_min": 1.0,
+    "steady_p95_ms_max": 250.0,
+    "identical_vector_stability": true
+  },
+  "checks": {
+    "dimensions": true,
+    "top1_accuracy": true,
+    "recall_at_3": true,
+    "mrr": true,
+    "per_language_recall_at_3": true,
+    "identical_vector_stability": true,
+    "steady_p95_ms": true
+  },
+  "verdict": "PASS",
+  "scope": "Embedding and deterministic in-memory ranking admission only; no production tenant corpus, persistent index, runtime retrieval route, or physical voice claim."
+}

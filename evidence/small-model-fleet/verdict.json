@@ -8,15 +8,18 @@
   "physical_voice": "BLOCKED",
   "co_residency": "TEST_INVALID",
   "notes": [
-    "245 regression tests passed and Ruff passed.",
+    "249 regression tests passed and Ruff passed.",
     "Qwen3-4B-Instruct passed the constrained deterministic L1 verbalizer admission: 33/33 responses, zero unsupported-fact failures, stable output per case, p50 1362.6 ms and p95 1559.7 ms.",
     "The PASS applies only to the grounded verbalizer role after the remote-worker prompt/context transport fix; it is not production or physical-voice certification.",
     "Both Bonsai L1 challengers failed semantic admission by fabricating bounded business facts; Qwen3-4B-Instruct replaces them only in the constrained verbalizer lab config.",
+    "Nomic admission does not establish a production tenant corpus, persistent index, or active VoxMaestro retrieval route.",
     "Earlier 4B RSS interpretation was wrong: ps reported KiB. Correct 4B macOS footprint was 1482 MB with a 1711 MB peak after workload.",
     "Simultaneous L0+L1+ASR+TTS co-residency remains untested; this slice measured the admitted Qwen L1 process alone.",
     "Existing VSAI intent service is healthy but contract-incompatible and remains BLOCKED.",
-    "Nomic is healthy at 768 dimensions but retrieval admission remains BLOCKED pending relevance and steady-state evidence.",
+    "Nomic is KEEP for the embedding lane after 24-query EN/ES admission: 87.5% top-one, 100% recall@3 per language, 0.923611 MRR, and 12.924 ms p95.",
     "qwen3:8b and veynit-qwen3:8b were removed after explicit operator authorization; Ollama payload inventory fell from 6.7G to 1.8G (approximately 5.2 GB reclaimed).",
     "Calendar booking effect remains BLOCKED because current unconfigured bridge can return synthetic confirmation."
-  ]
+  ],
+  "retrieval_model": "nomic-embed-text:latest",
+  "retrieval": "PASS"
 }

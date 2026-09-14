@@ -43,6 +43,22 @@
       "health": "PASS",
       "admission": "PASS",
       "admission_scope": "constrained deterministic L1 verbalizer"
+    },
+    {
+      "repo": "nomic-embed-text:latest",
+      "revision": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
+      "ollama_blob_sha256": "970aa74c0a90ef7482477cf803618e776e173c007bf957f635f1015bfcfef0e6",
+      "role": "EN/ES retrieval embedding",
+      "endpoint": "http://127.0.0.1:11434/api/embed",
+      "context_limit_configured": 2048,
+      "dimensions": 768,
+      "serving_library": "Ollama 0.33.3",
+      "process_command": "ollama serve (existing resident service); model loaded on demand by /api/embed",
+      "downloaded": false,
+      "health": "PASS",
+      "admission": "PASS",
+      "disposition": "KEEP",
+      "admission_scope": "Synthetic bilingual embedding and deterministic in-memory ranking; production tenant corpus/index and runtime route not admitted."
     }
   ]
 }

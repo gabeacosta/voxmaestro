@@ -37,5 +37,19 @@
   },
   "measurement_method_qwen": "Three repetitions of 11 VoiceScheduleAI cases through remote_worker.v0 with the exact checked-in config prompt and MLX prompt caching disabled; nearest-rank p95.",
   "l1_constrained_pass": true,
-  "no_claim_of_full_program_pass": true
+  "no_claim_of_full_program_pass": true,
+  "retrieval_nomic": {
+    "requests": 40,
+    "p50_ms": 10.281,
+    "p95_ms": 12.924,
+    "range_ms": [
+      9.036,
+      13.836
+    ],
+    "top1_accuracy": 0.875,
+    "recall_at_3": 1.0,
+    "mrr": 0.923611,
+    "admission": "PASS",
+    "scope": "synthetic bilingual embedding and deterministic ranking"
+  }
 }

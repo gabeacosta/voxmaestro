@@ -9,8 +9,10 @@
   "co_residency": "TEST_INVALID",
   "blocked": [
     "Existing VSAI L0 intent contract admission",
-    "Nomic EN/ES retrieval admission",
+    "production tenant retrieval corpus/index and VoxMaestro route",
     "real calendar write qualification",
     "physical ASR/TTS/barge-in run"
-  ]
+  ],
+  "retrieval_model": "nomic-embed-text:latest",
+  "retrieval_embedding": "PASS"
 }

@@ -15,10 +15,17 @@
     "endpoint": "http://127.0.0.1:11436/v1/intent",
     "pid": null,
     "health": "PASS",
-    "health_evidence": {"status": "ok", "mlx_loaded": true, "uptime_seconds": 405797.3},
+    "health_evidence": {
+      "status": "ok",
+      "mlx_loaded": true,
+      "uptime_seconds": 405797.3
+    },
     "schema_compatible": false,
     "languages": [],
-    "language_claims_unqualified": ["en", "es"],
+    "language_claims_unqualified": [
+      "en",
+      "es"
+    ],
     "disposition": "BLOCKED",
     "reason": "Existing service cascades MLX to local Ollama to VPS, repairs output, requires API key, lacks request-owned legal intents, and wraps intent JSON as a string. Health is not contract admission.",
     "ollama_fallback_model": "vsai-intent-v7:latest",
@@ -35,22 +42,57 @@
     "pid": null,
     "health": "PASS",
     "dimensions": 768,
-    "languages": [],
-    "languages_smoke_input": ["en", "es"],
-    "disposition": "BLOCKED",
-    "reason": "Existing endpoint works; EN/ES retrieval relevance, corpus provenance, resident memory and steady latency admission remain unqualified. Retain as first retrieval candidate.",
+    "languages": [
+      "en",
+      "es"
+    ],
+    "languages_smoke_input": [
+      "en",
+      "es"
+    ],
+    "disposition": "KEEP",
+    "reason": "Resident loopback Nomic lane passed the pinned synthetic EN/ES embedding and deterministic ranking admission. Production tenant corpus, persistent index, and runtime route remain separate blocked work.",
     "digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
     "payload_bytes": 274302450,
     "quantization": "F16",
     "context_length": 2048,
     "probe": {
       "synthetic_input_count": 3,
-      "dimensions": [768, 768, 768],
+      "dimensions": [
+        768,
+        768,
+        768
+      ],
       "duplicate_input_vectors_exactly_equal": true,
       "total_duration_ns": 599698625,
       "load_duration_ns": 560021292,
       "prompt_eval_count": 32,
       "scope": "One batch containing repeated English query and one Spanish query; not retrieval relevance or latency percentile evidence."
+    },
+    "admission_artifact": "evidence/small-model-fleet/nomic_retrieval_admission.json",
+    "admission": {
+      "program": "VM-VSAI-RETRIEVAL-001",
+      "verdict": "PASS",
+      "documents": 12,
+      "queries": 24,
+      "top1_accuracy": 0.875,
+      "recall_at_3": 1.0,
+      "mrr": 0.923611,
+      "per_language_recall_at_3": {
+        "en": 1.0,
+        "es": 1.0
+      },
+      "steady_p50_ms": 10.281,
+      "steady_p95_ms": 12.924,
+      "identical_vector_stability": true,
+      "scope": "Embedding and deterministic in-memory ranking admission only; no production tenant corpus, persistent index, runtime retrieval route, or physical voice claim."
+    },
+    "memory": {
+      "ollama_reported_size_mb": 370,
+      "ps_rss_kib": 312336,
+      "macos_phys_footprint_mb": 47,
+      "macos_phys_footprint_peak_mb": 96,
+      "note": "Raw tools report different accounting surfaces; values are recorded without summing them."
     }
   },
   "qwen3_8b": {
@@ -75,7 +117,11 @@
     "default_hf_hub_cache": "/Users/clue/.cache/huggingface/hub",
     "default_hf_hub_cache_exists": false,
     "bonsai_found_in_searched_roots": false,
-    "searched_roots": ["/Users/clue/models", "/Users/clue/Library/Caches", "/Users/clue/.cache"],
+    "searched_roots": [
+      "/Users/clue/models",
+      "/Users/clue/Library/Caches",
+      "/Users/clue/.cache"
+    ],
     "search_maxdepth": 3
   },
   "calendar": {
