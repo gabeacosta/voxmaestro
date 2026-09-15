@@ -19,6 +19,7 @@ import asyncio
 import json
 import time
 import urllib.request
+from collections.abc import Mapping
 from pathlib import Path
 
 from voxmaestro import VoxMaestroRuntime
@@ -31,10 +32,50 @@ CONFIG_PATH = Path(__file__).with_name("microscroll_landing.yaml")
 VOICE_ID = "alba"  # Kyutai demo voice; use a licensed voice in production
 
 
+def build_tool_payload(tool, params, context):
+    """Build an HTTP tool payload from explicit, trusted config mappings."""
+    payload = dict(params)
+    request_context = tool.get("request_context")
+    if not isinstance(request_context, Mapping):
+        return payload
+
+    query_key = request_context.get("latest_caller_text_as")
+    if query_key is not None:
+        if not isinstance(query_key, str) or not query_key:
+            raise ValueError("latest_caller_text_as must be a non-empty string")
+        latest = next(
+            (
+                turn.get("content")
+                for turn in reversed(context.conversation_history)
+                if turn.get("role") == "caller"
+            ),
+            None,
+        )
+        if not isinstance(latest, str) or not latest.strip():
+            raise ValueError("latest caller text is unavailable")
+        payload[query_key] = latest
+
+    language_key = request_context.get("session_language_as")
+    if language_key is not None:
+        if not isinstance(language_key, str) or not language_key:
+            raise ValueError("session_language_as must be a non-empty string")
+        locale = context.metadata.get("locale") or request_context.get("default_language")
+        normalized = str(locale or "").lower().replace("_", "-")
+        if normalized == "es" or normalized.startswith("es-"):
+            language = "es"
+        elif normalized == "en" or normalized.startswith("en-"):
+            language = "en"
+        else:
+            raise ValueError("session language must resolve to en or es")
+        payload[language_key] = language
+    return payload
+
+
 async def http_tool_executor(tool_name, tool, params, context):
+    payload = build_tool_payload(tool, params, context)
     request = urllib.request.Request(
         tool["endpoint"],
-        data=json.dumps(params).encode("utf-8"),
+        data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST",
     )

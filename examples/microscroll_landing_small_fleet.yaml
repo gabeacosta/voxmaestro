@@ -4,6 +4,8 @@
 # kernel HTTP generation endpoint (see examples/bonsai_worker_service.py).
 # Everything else is identical to examples/microscroll_landing.yaml.
 # Text-first on purpose: browser voice is an additive transport concern.
+# The retrieval route uses the synthetic, provenance-bearing admission corpus;
+# it is not a production dental tenant knowledge base.
 
 schema_version: "0.1.0"
 
@@ -21,6 +23,7 @@ intent:
       description: "Visitor greets or opens the conversation"
     - id: "service_question"
       description: "Visitor asks what the business offers or whether it can solve a problem"
+      tool: "retrieve_business_context"
     - id: "pricing_question"
       description: "Visitor asks about price, plans, estimates, or cost"
     - id: "availability_question"
@@ -114,6 +117,20 @@ states:
       - "save_transcript"
 
 tools:
+  retrieve_business_context:
+    endpoint: "http://127.0.0.1:8092/v1/retrieve"
+    method: "POST"
+    timeout_ms: 500
+    filler:
+      text: "Let me verify that."
+    request_context:
+      latest_caller_text_as: "query"
+      session_language_as: "language"
+      default_language: "en"
+    on_success: "inject_result"
+    on_failure:
+      message: "I cannot verify that information right now."
+
   check_availability:
     endpoint: "http://127.0.0.1:7790/internal/availability"
     method: "POST"
