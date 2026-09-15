@@ -1,5 +1,5 @@
 {
-  "program": "VM-SMALL-FLEET-003",
+  "program": "VM-SMALL-FLEET-004",
   "hardware": "Mac mini M4 16GB",
   "l0_model": "prism-ml/Ternary-Bonsai-1.7B-mlx-2bit",
   "l1_model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
@@ -8,18 +8,24 @@
   "physical_voice": "BLOCKED",
   "co_residency": "TEST_INVALID",
   "notes": [
-    "249 regression tests passed and Ruff passed.",
+    "282 regression tests passed and Ruff passed.",
     "Qwen3-4B-Instruct passed the constrained deterministic L1 verbalizer admission: 33/33 responses, zero unsupported-fact failures, stable output per case, p50 1362.6 ms and p95 1559.7 ms.",
     "The PASS applies only to the grounded verbalizer role after the remote-worker prompt/context transport fix; it is not production or physical-voice certification.",
     "Both Bonsai L1 challengers failed semantic admission by fabricating bounded business facts; Qwen3-4B-Instruct replaces them only in the constrained verbalizer lab config.",
-    "Nomic admission does not establish a production tenant corpus, persistent index, or active VoxMaestro retrieval route.",
     "Earlier 4B RSS interpretation was wrong: ps reported KiB. Correct 4B macOS footprint was 1482 MB with a 1711 MB peak after workload.",
-    "Simultaneous L0+L1+ASR+TTS co-residency remains untested; this slice measured the admitted Qwen L1 process alone.",
+    "Partial co-residency measured Qwen L1, pinned Nomic retrieval, and active Kokoro TTS; Whisper ASR was absent, so full L0+L1+retrieval+ASR+TTS co-residency remains untested.",
     "Existing VSAI intent service is healthy but contract-incompatible and remains BLOCKED.",
     "Nomic is KEEP for the embedding lane after 24-query EN/ES admission: 87.5% top-one, 100% recall@3 per language, 0.923611 MRR, and 12.924 ms p95.",
     "qwen3:8b and veynit-qwen3:8b were removed after explicit operator authorization; Ollama payload inventory fell from 6.7G to 1.8G (approximately 5.2 GB reclaimed).",
-    "Calendar booking effect remains BLOCKED because current unconfigured bridge can return synthetic confirmation."
+    "Calendar booking effect remains BLOCKED because current unconfigured bridge can return synthetic confirmation.",
+    "Persistent Nomic retrieval worker is bound to the admitted digest, corpus hash, and index; it exposes one loopback semantic endpoint and keeps one Ollama model hot.",
+    "Runtime retrieval route passed grounded EN and ES turns through the real Qwen remote worker. No-match and dead retrieval paths used the fixed runtime failure text with zero L1 calls and no fallback.",
+    "Precision-first route gate accepted 17/24 canonical queries with 17/17 correct accepted passages, abstained on 7/24, and rejected 8/8 bilingual out-of-domain probes.",
+    "An earlier co-resident first L1 request exceeded the configured 5000 ms timeout; two immediate repeat runs passed near 2.0 seconds. Production certification remains blocked on that intermittent idle/cold latency.",
+    "The active retrieval fixture remains synthetic; no dental tenant corpus is admitted."
   ],
   "retrieval_model": "nomic-embed-text:latest",
-  "retrieval": "PASS"
+  "retrieval": "PASS",
+  "retrieval_runtime": "PASS",
+  "retrieval_runtime_scope": "Synthetic-corpus text route only"
 }

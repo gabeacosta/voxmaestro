@@ -51,5 +51,29 @@
     "mrr": 0.923611,
     "admission": "PASS",
     "scope": "synthetic bilingual embedding and deterministic ranking"
+  },
+  "retrieval_runtime_worker": {
+    "requests": 24,
+    "p50_ms": 14.863,
+    "p95_ms": 18.764,
+    "range_ms": [
+      13.456,
+      31.214
+    ],
+    "precision_gate": {
+      "accepted": 17,
+      "abstained": 7,
+      "incorrect_accepted": 0,
+      "coverage": 0.708333
+    },
+    "out_of_domain_abstained": "8/8",
+    "grounded_route_elapsed_ms": {
+      "en": 2367.369,
+      "es": 2002.932
+    },
+    "no_match_elapsed_ms": 32.496,
+    "dead_endpoint_elapsed_ms": 2.777,
+    "admission": "PASS",
+    "scope": "synthetic-corpus text route; intermittent first-call 5000 ms timeout blocks production certification"
   }
 }

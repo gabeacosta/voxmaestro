@@ -1,0 +1,36 @@
+{
+  "program": "VM-SMALL-FLEET-004",
+  "date": "2026-09-14",
+  "result": "PARTIAL",
+  "l1_model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+  "l1_constrained_verbalizer": "PASS",
+  "retrieval_model": "nomic-embed-text:latest",
+  "retrieval_persistent_index": "PASS",
+  "retrieval_runtime_route": "PASS",
+  "retrieval_scope": "synthetic-corpus text route",
+  "retrieval_precision": {
+    "accepted": 17,
+    "correct_accepted": 17,
+    "abstained": 7,
+    "out_of_domain_abstained": 8
+  },
+  "failure_semantics": {
+    "no_match_l1_calls": 0,
+    "dead_endpoint_l1_calls": 0,
+    "automatic_fallback": false
+  },
+  "physical_voice": "NOT_RUN",
+  "co_residency": "PARTIAL",
+  "co_residency_scope": "Qwen L1 + pinned Nomic + Kokoro active; Whisper ASR absent",
+  "known_limitations": [
+    "one preceding co-resident first L1 request exceeded 5000 ms",
+    "production dental tenant corpus absent"
+  ],
+  "blocked": [
+    "Existing VSAI L0 intent contract admission",
+    "production tenant retrieval corpus",
+    "real calendar write qualification",
+    "physical ASR/TTS/barge-in run",
+    "full L0+L1+retrieval+ASR+TTS co-residency"
+  ]
+}

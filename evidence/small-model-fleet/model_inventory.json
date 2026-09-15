@@ -48,17 +48,27 @@
       "repo": "nomic-embed-text:latest",
       "revision": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
       "ollama_blob_sha256": "970aa74c0a90ef7482477cf803618e776e173c007bf957f635f1015bfcfef0e6",
-      "role": "EN/ES retrieval embedding",
+      "role": "EN/ES retrieval embedding behind deterministic semantic worker",
       "endpoint": "http://127.0.0.1:11434/api/embed",
       "context_limit_configured": 2048,
       "dimensions": 768,
       "serving_library": "Ollama 0.33.3",
-      "process_command": "ollama serve (existing resident service); model loaded on demand by /api/embed",
+      "process_command": "ollama serve (existing service) plus uv run python examples/retrieval_worker_service.py; model pinned with numeric keep_alive=-1",
       "downloaded": false,
       "health": "PASS",
       "admission": "PASS",
       "disposition": "KEEP",
-      "admission_scope": "Synthetic bilingual embedding and deterministic in-memory ranking; production tenant corpus/index and runtime route not admitted."
+      "admission_scope": "Synthetic bilingual persistent-index text route with precision-first abstention; production tenant corpus and physical voice are not admitted.",
+      "semantic_service_endpoint": "http://127.0.0.1:8092/v1/retrieve",
+      "persistent_index": "evidence/small-model-fleet/vsai_retrieval_v0.index.json",
+      "index_schema": "vsai-retrieval-index.v0",
+      "corpus_sha256": "b5c6433d6d7dc6603e7eeefce7b362e966c562144f0efbfd9238ad68c7aa610c",
+      "top_k": 1,
+      "min_score": 0.6,
+      "min_margin": 0.03,
+      "keep_alive": -1,
+      "transport_security": "numeric loopback direct HTTP; no redirect/proxy inheritance; credential-like text rejected",
+      "identity_enforcement": "digest verified before and after every embedding request"
     }
   ]
 }
