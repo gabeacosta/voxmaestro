@@ -1,0 +1,5 @@
+Mac mini M4 (hw.model=Mac16,10), arm64
+RAM=17179869184 bytes
+Python=3.14.6
+mlx=0.31.1
+mlx-lm=0.31.1

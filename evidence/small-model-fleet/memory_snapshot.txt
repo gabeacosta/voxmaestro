@@ -1,0 +1,17 @@
+Initial host observations, 2026-09-14 America/Los_Angeles
+RAM bytes=17179869184
+hw.model=Mac16,10
+memory_pressure -Q free=36%
+kern.memorystatus_vm_pressure_level=2
+swap observation1 used=31421.06M total=32768.00M
+swap observation2 used=31283.81M total=32768.00M
+Existing qwen3:8b api/ps size_vram=7413568634 bytes context=16384
+This is baseline host pressure, not fleet co-residency evidence.
+Qwen removal: qwen3:8b and veynit-qwen3:8b removed through Ollama; payload inventory 6.7G before to 1.8G after; approximately 5225387864 bytes reclaimed.
+Post-Qwen baseline: memory free 66%; pressure level 1; swap used 18175.69M.
+Bonsai 1.7B after 15 requests: ps RSS 827120 KiB; memory free 68%; pressure level 1; swap used 17270.06M.
+Bonsai 4B after 15 requests: ps RSS 342192 KiB; macOS footprint phys_footprint 1482 MB, peak 1711 MB; memory free 60%; pressure level 1; swap used 16982.00M.
+Correction: an earlier ps RSS value of 19584 was incorrectly interpreted as megabytes. ps reports KiB. The prior 19.5 GB claim is withdrawn; Metal/unified memory is represented by the footprint measurement above.
+Qwen3-4B-Instruct after 66 admission requests: ps RSS 132688 KiB; macOS footprint 2587 MB, peak 4258 MB; memory free 54%; pressure level 1; swap used 17641.50 MB. Swap remained below the 18175.69 MB post-removal baseline.
+Nomic after retrieval admission: Ollama reported 370 MB model size; runner ps RSS 312336 KiB; macOS footprint 47 MB current / 96 MB peak; memory free 50%; pressure level 1; swap used 16889.50 MB. These accounting surfaces are recorded separately and are not summed.
+VM-SMALL-FLEET-004 partial co-residency: Qwen L1 macOS footprint 2599 MB; Nomic reported 370 MB by ollama ps and pinned Forever; Kokoro TTS process active; Whisper ASR absent. A repeated route run changed swap from 19573.38 MB to 19565.38 MB (-8.00 MB), memory free from 68% to 51%, and both grounded turns completed near 2.0 seconds. A preceding first L1 turn exceeded the configured 5000 ms timeout. Post-run pressure level=1, memory free=67%, swap used=19493.38 MB. This is partial co-residency evidence, not full voice co-residency admission.

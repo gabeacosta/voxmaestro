@@ -1,0 +1,514 @@
+{
+  "program": "VM-VSAI-RETRIEVAL-ROUTE-001",
+  "observed_date": "2026-09-14",
+  "config": "/Users/clue/voxmaestro-small-fleet/examples/microscroll_landing_small_fleet.yaml",
+  "corpus": "/Users/clue/voxmaestro-small-fleet/docs/wt/vsai_retrieval_v0.json",
+  "intent_mode": "injected preselected service_question; L0 not tested",
+  "health": {
+    "status_code": 200,
+    "elapsed_ms": 8.719,
+    "body": {
+      "status": "ok",
+      "model": "nomic-embed-text:latest",
+      "model_digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
+      "corpus_sha256": "b5c6433d6d7dc6603e7eeefce7b362e966c562144f0efbfd9238ad68c7aa610c",
+      "dimensions": 768,
+      "top_k": 1,
+      "min_score": 0.6,
+      "min_margin": 0.03
+    }
+  },
+  "precision_gate": {
+    "top_k": 1,
+    "min_score": 0.6,
+    "min_margin": 0.03,
+    "queries": 24,
+    "accepted": 17,
+    "abstained": 7,
+    "correct_accepted": 17,
+    "incorrect_accepted": 0,
+    "accepted_precision": 1.0,
+    "coverage": 0.708333,
+    "results": [
+      {
+        "query_id": "en_schedule_1",
+        "language": "en",
+        "expected_id": "en_scheduling",
+        "accepted_id": "en_scheduling",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 31.214
+      },
+      {
+        "query_id": "en_patient_1",
+        "language": "en",
+        "expected_id": "en_new_patient",
+        "accepted_id": "en_new_patient",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 18.764
+      },
+      {
+        "query_id": "en_insurance_1",
+        "language": "en",
+        "expected_id": "en_insurance",
+        "accepted_id": "en_insurance",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 16.874
+      },
+      {
+        "query_id": "en_handoff_1",
+        "language": "en",
+        "expected_id": "en_handoff",
+        "accepted_id": "en_handoff",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 17.021
+      },
+      {
+        "query_id": "en_calendar_1",
+        "language": "en",
+        "expected_id": "en_calendars",
+        "accepted_id": "en_calendars",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 14.471
+      },
+      {
+        "query_id": "en_custom_1",
+        "language": "en",
+        "expected_id": "en_customization",
+        "accepted_id": "en_customization",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 15.285
+      },
+      {
+        "query_id": "es_schedule_1",
+        "language": "es",
+        "expected_id": "es_scheduling",
+        "accepted_id": "es_scheduling",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 14.455
+      },
+      {
+        "query_id": "es_patient_1",
+        "language": "es",
+        "expected_id": "es_new_patient",
+        "accepted_id": "es_new_patient",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 14.948
+      },
+      {
+        "query_id": "es_insurance_1",
+        "language": "es",
+        "expected_id": "es_insurance",
+        "accepted_id": "es_insurance",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 15.581
+      },
+      {
+        "query_id": "es_handoff_1",
+        "language": "es",
+        "expected_id": "es_handoff",
+        "accepted_id": "es_handoff",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 13.993
+      },
+      {
+        "query_id": "es_calendar_1",
+        "language": "es",
+        "expected_id": "es_calendars",
+        "accepted_id": null,
+        "correct": false,
+        "status_code": 404,
+        "elapsed_ms": 13.456
+      },
+      {
+        "query_id": "es_custom_1",
+        "language": "es",
+        "expected_id": "es_customization",
+        "accepted_id": "es_customization",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 14.259
+      },
+      {
+        "query_id": "en_schedule_2",
+        "language": "en",
+        "expected_id": "en_scheduling",
+        "accepted_id": null,
+        "correct": false,
+        "status_code": 404,
+        "elapsed_ms": 16.193
+      },
+      {
+        "query_id": "en_patient_2",
+        "language": "en",
+        "expected_id": "en_new_patient",
+        "accepted_id": "en_new_patient",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 13.971
+      },
+      {
+        "query_id": "en_insurance_2",
+        "language": "en",
+        "expected_id": "en_insurance",
+        "accepted_id": null,
+        "correct": false,
+        "status_code": 404,
+        "elapsed_ms": 15.148
+      },
+      {
+        "query_id": "en_handoff_2",
+        "language": "en",
+        "expected_id": "en_handoff",
+        "accepted_id": "en_handoff",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 14.338
+      },
+      {
+        "query_id": "en_calendar_2",
+        "language": "en",
+        "expected_id": "en_calendars",
+        "accepted_id": "en_calendars",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 15.557
+      },
+      {
+        "query_id": "en_custom_2",
+        "language": "en",
+        "expected_id": "en_customization",
+        "accepted_id": null,
+        "correct": false,
+        "status_code": 404,
+        "elapsed_ms": 14.778
+      },
+      {
+        "query_id": "es_schedule_2",
+        "language": "es",
+        "expected_id": "es_scheduling",
+        "accepted_id": null,
+        "correct": false,
+        "status_code": 404,
+        "elapsed_ms": 14.288
+      },
+      {
+        "query_id": "es_patient_2",
+        "language": "es",
+        "expected_id": "es_new_patient",
+        "accepted_id": null,
+        "correct": false,
+        "status_code": 404,
+        "elapsed_ms": 14.991
+      },
+      {
+        "query_id": "es_insurance_2",
+        "language": "es",
+        "expected_id": "es_insurance",
+        "accepted_id": "es_insurance",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 14.743
+      },
+      {
+        "query_id": "es_handoff_2",
+        "language": "es",
+        "expected_id": "es_handoff",
+        "accepted_id": "es_handoff",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 15.345
+      },
+      {
+        "query_id": "es_calendar_2",
+        "language": "es",
+        "expected_id": "es_calendars",
+        "accepted_id": "es_calendars",
+        "correct": true,
+        "status_code": 200,
+        "elapsed_ms": 13.837
+      },
+      {
+        "query_id": "es_custom_2",
+        "language": "es",
+        "expected_id": "es_customization",
+        "accepted_id": null,
+        "correct": false,
+        "status_code": 404,
+        "elapsed_ms": 14.629
+      }
+    ]
+  },
+  "out_of_domain": [
+    {
+      "language": "en",
+      "text": "Does VoiceScheduleAI sell pizza?",
+      "status_code": 404,
+      "status": "no_match",
+      "accepted": false,
+      "elapsed_ms": 14.463
+    },
+    {
+      "language": "en",
+      "text": "What is the weather in Phoenix?",
+      "status_code": 404,
+      "status": "no_match",
+      "accepted": false,
+      "elapsed_ms": 15.614
+    },
+    {
+      "language": "en",
+      "text": "Can you repair my car engine?",
+      "status_code": 404,
+      "status": "no_match",
+      "accepted": false,
+      "elapsed_ms": 14.761
+    },
+    {
+      "language": "en",
+      "text": "Who won the baseball game?",
+      "status_code": 404,
+      "status": "no_match",
+      "accepted": false,
+      "elapsed_ms": 13.384
+    },
+    {
+      "language": "es",
+      "text": "¿VoiceScheduleAI vende pizza?",
+      "status_code": 404,
+      "status": "no_match",
+      "accepted": false,
+      "elapsed_ms": 15.199
+    },
+    {
+      "language": "es",
+      "text": "¿Qué tiempo hace en Phoenix?",
+      "status_code": 404,
+      "status": "no_match",
+      "accepted": false,
+      "elapsed_ms": 15.013
+    },
+    {
+      "language": "es",
+      "text": "¿Puedes reparar el motor de mi coche?",
+      "status_code": 404,
+      "status": "no_match",
+      "accepted": false,
+      "elapsed_ms": 15.354
+    },
+    {
+      "language": "es",
+      "text": "¿Quién ganó el partido de béisbol?",
+      "status_code": 404,
+      "status": "no_match",
+      "accepted": false,
+      "elapsed_ms": 15.571
+    }
+  ],
+  "runtime_scenarios": [
+    {
+      "session": "retrieval-en",
+      "locale": "en-US",
+      "input": "Does VoiceScheduleAI work with Outlook?",
+      "elapsed_ms": 2367.369,
+      "l1_calls": 1,
+      "events": [
+        {
+          "type": "response",
+          "text": "Let me verify that.",
+          "sessionId": "retrieval-en",
+          "metadata": {
+            "phase": "filler",
+            "final": false
+          }
+        },
+        {
+          "type": "response",
+          "text": "Yes, VoiceScheduleAI integrates with Outlook. Let me know if you'd like help setting that up.",
+          "sessionId": "retrieval-en",
+          "metadata": {
+            "phase": "final",
+            "final": true,
+            "state": "initial",
+            "intent": "service_question",
+            "presentationHint": "prove"
+          }
+        }
+      ],
+      "state": "initial",
+      "intent_history": [
+        "service_question"
+      ],
+      "retrieval": {
+        "status": "ok",
+        "success": true,
+        "model": "nomic-embed-text:latest",
+        "model_digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
+        "corpus_sha256": "b5c6433d6d7dc6603e7eeefce7b362e966c562144f0efbfd9238ad68c7aa610c",
+        "language": "en",
+        "matches": [
+          {
+            "id": "en_calendars",
+            "language": "en",
+            "category": "business_faq",
+            "text": "VoiceScheduleAI integrates with Google Calendar, Outlook, and compatible scheduling tools.",
+            "source_ids": [
+              "vsai_site"
+            ],
+            "score": 0.68956127
+          }
+        ]
+      }
+    },
+    {
+      "session": "retrieval-es",
+      "locale": "es-MX",
+      "input": "¿VoiceScheduleAI gestiona pacientes dentales nuevos?",
+      "elapsed_ms": 2002.932,
+      "l1_calls": 1,
+      "events": [
+        {
+          "type": "response",
+          "text": "Let me verify that.",
+          "sessionId": "retrieval-es",
+          "metadata": {
+            "phase": "filler",
+            "final": false
+          }
+        },
+        {
+          "type": "response",
+          "text": "Sí, VoiceScheduleAI gestiona la admisión de pacientes nuevos para consultorios dentales.",
+          "sessionId": "retrieval-es",
+          "metadata": {
+            "phase": "final",
+            "final": true,
+            "state": "initial",
+            "intent": "service_question",
+            "presentationHint": "prove"
+          }
+        }
+      ],
+      "state": "initial",
+      "intent_history": [
+        "service_question"
+      ],
+      "retrieval": {
+        "status": "ok",
+        "success": true,
+        "model": "nomic-embed-text:latest",
+        "model_digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
+        "corpus_sha256": "b5c6433d6d7dc6603e7eeefce7b362e966c562144f0efbfd9238ad68c7aa610c",
+        "language": "es",
+        "matches": [
+          {
+            "id": "es_new_patient",
+            "language": "es",
+            "category": "dental_faq",
+            "text": "VoiceScheduleAI gestiona la admisión de pacientes nuevos para consultorios dentales.",
+            "source_ids": [
+              "vsai_site"
+            ],
+            "score": 0.79251162
+          }
+        ]
+      }
+    },
+    {
+      "session": "retrieval-no-match",
+      "locale": "en-US",
+      "input": "Does VoiceScheduleAI sell pizza?",
+      "elapsed_ms": 32.496,
+      "l1_calls": 0,
+      "events": [
+        {
+          "type": "response",
+          "text": "Let me verify that.",
+          "sessionId": "retrieval-no-match",
+          "metadata": {
+            "phase": "filler",
+            "final": false
+          }
+        },
+        {
+          "type": "response",
+          "text": "I cannot verify that information right now.",
+          "sessionId": "retrieval-no-match",
+          "metadata": {
+            "phase": "tool_failure",
+            "final": true,
+            "tool": "retrieve_business_context"
+          }
+        }
+      ],
+      "state": "initial",
+      "intent_history": [
+        "service_question"
+      ],
+      "retrieval": null
+    }
+  ],
+  "dead_endpoint": {
+    "session": "retrieval-dead",
+    "locale": "en-US",
+    "input": "Does VoiceScheduleAI work with Outlook?",
+    "elapsed_ms": 2.777,
+    "l1_calls": 0,
+    "events": [
+      {
+        "type": "response",
+        "text": "Let me verify that.",
+        "sessionId": "retrieval-dead",
+        "metadata": {
+          "phase": "filler",
+          "final": false
+        }
+      },
+      {
+        "type": "response",
+        "text": "I cannot verify that information right now.",
+        "sessionId": "retrieval-dead",
+        "metadata": {
+          "phase": "tool_failure",
+          "final": true,
+          "tool": "retrieve_business_context"
+        }
+      }
+    ],
+    "state": "initial",
+    "intent_history": [
+      "service_question"
+    ],
+    "retrieval": null
+  },
+  "checks": {
+    "health": true,
+    "accepted_precision_is_one": true,
+    "bilingual_grounded_l1": true,
+    "out_of_domain_abstains": true,
+    "no_match_bypasses_l1": true,
+    "dead_endpoint_bypasses_l1": true
+  },
+  "verdict": "PASS",
+  "scope": "Synthetic-corpus text route through the persistent Nomic worker and real remote L1 worker; no production tenant corpus, L0, effects, or physical voice claim.",
+  "security_boundaries": {
+    "embedding_endpoint": "numeric loopback HTTP only; URL credentials/query/fragment forbidden",
+    "transport": "direct HTTPConnection; redirects and environment proxies are not used",
+    "credentials": "credential-like corpus and live query text rejected before inference",
+    "model_identity": "admitted Ollama digest checked before and after every embedding request"
+  },
+  "known_observations": [
+    "A preceding co-resident attempt hit the configured 5000 ms L1 timeout on its first English generation; its remote-worker connection closed before MLX finished. Subsequent repeat runs passed at approximately 2.0-2.4 seconds per grounded turn. This intermittent idle/cold latency blocks production certification.",
+    "The 24-query precision gate abstains on 7 canonical queries (70.8333% coverage) to prevent wrong passages from reaching L1.",
+    "The corpus is synthetic and provenance-bearing; it is not a dental tenant production corpus."
+  ]
+}

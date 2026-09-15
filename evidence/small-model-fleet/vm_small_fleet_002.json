@@ -1,0 +1,47 @@
+{
+  "program": "VM-SMALL-FLEET-002",
+  "date": "2026-09-14",
+  "result": "FAIL",
+  "prompt_cache_root_cause": {
+    "observed": "With prompt-cache-size=1, later 1.7B outputs repeated fragments from earlier requests.",
+    "hypothesis_test": "Restarted the same model and worker with prompt-cache-size=0.",
+    "result": "Five sequential probes returned only ALPHA, BRAVO, CHARLIE, DELTA and ECHO; no prior-request content appeared.",
+    "disposition": "All fleet launch commands must set prompt-cache-size=0 until MLX cache isolation is independently fixed and tested."
+  },
+  "l1_1_7b": {
+    "revision": "5f3e306330f636cfc6c6241b4850fae6711c5985",
+    "mechanical_path": "PASS",
+    "semantic_admission": "FAIL",
+    "latency_ms": [497.8, 318.1, 359.1, 491.6, 340.8, 424.5, 261.6, 321.9, 324.6, 311.6],
+    "failures": [
+      "Asserted the office accepts new patients without supplied evidence.",
+      "Invented dental services.",
+      "Changed multiple English responses into Spanish.",
+      "Failed the human-handoff instruction."
+    ],
+    "rss_kib": 827120
+  },
+  "l1_4b": {
+    "revision": "e1374ad6bf9b1b56afd743936b8faa33c409a75f",
+    "mechanical_path": "PASS",
+    "semantic_admission": "FAIL",
+    "latency_ms": [604.1, 738.5, 681.6, 717.6, 713.0, 714.4, 739.9, 669.4, 586.0, 543.4],
+    "failures": [
+      "Asserted the office does not accept new patients without supplied evidence.",
+      "Falsely stated an appointment was scheduled in the patient's local timezone.",
+      "Invented routine cleanings, fillings, extractions and check-ups.",
+      "Did not honor the human-handoff request."
+    ],
+    "ps_rss_kib": 342192,
+    "phys_footprint_mb": 1482,
+    "phys_footprint_peak_mb": 1711
+  },
+  "host_after_4b": {
+    "memory_free_percent": 60,
+    "pressure_level": 1,
+    "swap_used_mb": 16982.00
+  },
+  "physical_voice": "NOT_RUN",
+  "co_residency": "TEST_INVALID",
+  "stop_reason": "No Bonsai L1 candidate met the no-fabricated-availability/booking/business-facts admission requirement."
+}

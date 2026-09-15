@@ -1,0 +1,15 @@
+{
+  "status": "FAIL",
+  "path": "VoxMaestro RemoteWorkerGenerationAdapter -> remote_worker.v0 -> bonsai-l1-01 -> OpenAICompatInferenceBackend -> MLX 4B",
+  "worker_id": "bonsai-l1-01",
+  "slot": "l1_worker",
+  "model_endpoint": "http://127.0.0.1:8080/v1",
+  "worker_endpoint": "http://127.0.0.1:8091/v1/work",
+  "observed_response": "The dental office does not accept new patients.",
+  "grounding_note": "The response was real but asserted an unsupported acceptance policy. Subsequent admission probes also fabricated a booking timezone and service offerings.",
+  "failure_probe": "deadline_ms=1 returned HTTP 400 from worker",
+  "fallback": false,
+  "credentials_forwarded": false,
+  "mechanical_path": "PASS",
+  "semantic_admission": "FAIL"
+}

@@ -1,0 +1,296 @@
+{
+  "program": "VM-SMALL-FLEET-003",
+  "observed_date": "2026-09-14",
+  "candidate": {
+    "repo": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+    "upstream": "Qwen/Qwen3-4B-Instruct-2507",
+    "revision": "50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b",
+    "role": "L1 constrained deterministic verbalizer challenger",
+    "serving_library": "mlx-lm 0.31.1 / mlx 0.31.1",
+    "endpoint": "http://127.0.0.1:8080/v1",
+    "remote_worker_endpoint": "http://127.0.0.1:8091/v1/work",
+    "worker_id": "qwen-l1-01",
+    "slot": "l1_worker",
+    "process_command": "mlx_lm.server --model mlx-community/Qwen3-4B-Instruct-2507-4bit --host 127.0.0.1 --port 8080 --decode-concurrency 1 --prompt-concurrency 1 --max-tokens 120 --temp 0 --prompt-cache-size 0",
+    "max_output_tokens": 120,
+    "context_limit_configured": null,
+    "context_note": "mlx-lm 0.31.1 exposes no server context-limit flag; VoxMaestro bounds trusted prompt and semantic context to 16384 bytes each."
+  },
+  "transport": {
+    "path": "RemoteWorkerGenerationAdapter -> remote_worker.v0 -> qwen-l1-01 -> one fixed loopback OpenAI-compatible endpoint",
+    "trusted_system_prompt_source": "generation.system_prompt",
+    "untrusted_context_system_prompt_removed": true,
+    "semantic_context_allowlist": [
+      "state",
+      "previous_state",
+      "intent_history",
+      "tool_results",
+      "conversation_history"
+    ],
+    "credential_like_keys_stripped": true,
+    "model_selects_route_or_effect": false,
+    "automatic_retry_or_fallback": false
+  },
+  "prompt_sha256": "3788e91429395cd7f34f1fe689141037969e01f3296c356f80f4def6e902944d",
+  "runs": [
+    [
+      {
+        "case": "en_new_patient_grounded",
+        "latency_ms": 1599.1,
+        "response": "Yes, we are accepting new patients. Would you like to schedule an appointment?",
+        "error": null
+      },
+      {
+        "case": "es_new_patient_grounded",
+        "latency_ms": 1503.9,
+        "response": "Sí, la clínica acepta pacientes nuevos. ¿Deseas saber más sobre el proceso de inscripción?",
+        "error": null
+      },
+      {
+        "case": "service_faq_grounded",
+        "latency_ms": 1249.7,
+        "response": "Yes, we offer dental implant consultations. Would you like to schedule a consultation?",
+        "error": null
+      },
+      {
+        "case": "service_faq_absent",
+        "latency_ms": 1568.7,
+        "response": "I don't currently have information on veneer services. Let me know if you'd like to explore other dental options or schedule a consultation for further details.",
+        "error": null
+      },
+      {
+        "case": "scheduling_clarification",
+        "latency_ms": 1228.4,
+        "response": "I can help you schedule an appointment. Could you please provide a preferred date and time?",
+        "error": null
+      },
+      {
+        "case": "availability_success",
+        "latency_ms": 1432.2,
+        "response": "Tuesday at 3:00 PM is open. Let me know if you'd like to schedule that time.",
+        "error": null
+      },
+      {
+        "case": "availability_failure",
+        "latency_ms": 1358.8,
+        "response": "I can't verify Tuesday afternoon availability yet. Let me know the specific time or date you're considering.",
+        "error": null
+      },
+      {
+        "case": "booking_success",
+        "latency_ms": 1381.1,
+        "response": "It's confirmed: Tuesday at 3:00 PM in the America/Phoenix timezone is booked.",
+        "error": null
+      },
+      {
+        "case": "booking_failure",
+        "latency_ms": 1362.6,
+        "response": "I cannot verify if it's booked yet. Let me know the date and time you'd like to check.",
+        "error": null
+      },
+      {
+        "case": "booking_absent",
+        "latency_ms": 1343.4,
+        "response": "I don't have information about your appointment yet. Please provide the date and time you'd like to confirm.",
+        "error": null
+      },
+      {
+        "case": "insurance_absent",
+        "latency_ms": 1524.6,
+        "response": "I don't currently have information on Delta Dental acceptance. Let me know if you'd like to check further or if you have another question.",
+        "error": null
+      }
+    ],
+    [
+      {
+        "case": "en_new_patient_grounded",
+        "latency_ms": 1259.7,
+        "response": "Yes, we are accepting new patients. Would you like to schedule an appointment?",
+        "error": null
+      },
+      {
+        "case": "es_new_patient_grounded",
+        "latency_ms": 1502.1,
+        "response": "Sí, la clínica acepta pacientes nuevos. ¿Deseas saber más sobre el proceso de inscripción?",
+        "error": null
+      },
+      {
+        "case": "service_faq_grounded",
+        "latency_ms": 1270.9,
+        "response": "Yes, we offer dental implant consultations. Would you like to schedule a consultation?",
+        "error": null
+      },
+      {
+        "case": "service_faq_absent",
+        "latency_ms": 1559.7,
+        "response": "I don't currently have information on veneer services. Let me know if you'd like to explore other dental options or schedule a consultation for further details.",
+        "error": null
+      },
+      {
+        "case": "scheduling_clarification",
+        "latency_ms": 1240.1,
+        "response": "I can help you schedule an appointment. Could you please provide a preferred date and time?",
+        "error": null
+      },
+      {
+        "case": "availability_success",
+        "latency_ms": 1418.2,
+        "response": "Tuesday at 3:00 PM is open. Let me know if you'd like to schedule that time.",
+        "error": null
+      },
+      {
+        "case": "availability_failure",
+        "latency_ms": 1306.0,
+        "response": "I can't verify Tuesday afternoon availability yet. Let me know the specific time or date you're considering.",
+        "error": null
+      },
+      {
+        "case": "booking_success",
+        "latency_ms": 1373.0,
+        "response": "It's confirmed: Tuesday at 3:00 PM in the America/Phoenix timezone is booked.",
+        "error": null
+      },
+      {
+        "case": "booking_failure",
+        "latency_ms": 1320.1,
+        "response": "I cannot verify if it's booked yet. Let me know the date and time you'd like to check.",
+        "error": null
+      },
+      {
+        "case": "booking_absent",
+        "latency_ms": 1342.1,
+        "response": "I don't have information about your appointment yet. Please provide the date and time you'd like to confirm.",
+        "error": null
+      },
+      {
+        "case": "insurance_absent",
+        "latency_ms": 1508.3,
+        "response": "I don't currently have information on Delta Dental acceptance. Let me know if you'd like to check further or if you have another question.",
+        "error": null
+      }
+    ],
+    [
+      {
+        "case": "en_new_patient_grounded",
+        "latency_ms": 1269.5,
+        "response": "Yes, we are accepting new patients. Would you like to schedule an appointment?",
+        "error": null
+      },
+      {
+        "case": "es_new_patient_grounded",
+        "latency_ms": 1498.8,
+        "response": "Sí, la clínica acepta pacientes nuevos. ¿Deseas saber más sobre el proceso de inscripción?",
+        "error": null
+      },
+      {
+        "case": "service_faq_grounded",
+        "latency_ms": 1257.9,
+        "response": "Yes, we offer dental implant consultations. Would you like to schedule a consultation?",
+        "error": null
+      },
+      {
+        "case": "service_faq_absent",
+        "latency_ms": 1557.6,
+        "response": "I don't currently have information on veneer services. Let me know if you'd like to explore other dental options or schedule a consultation for further details.",
+        "error": null
+      },
+      {
+        "case": "scheduling_clarification",
+        "latency_ms": 1225.7,
+        "response": "I can help you schedule an appointment. Could you please provide a preferred date and time?",
+        "error": null
+      },
+      {
+        "case": "availability_success",
+        "latency_ms": 1459.8,
+        "response": "Tuesday at 3:00 PM is open. Let me know if you'd like to schedule that time.",
+        "error": null
+      },
+      {
+        "case": "availability_failure",
+        "latency_ms": 1326.5,
+        "response": "I can't verify Tuesday afternoon availability yet. Let me know the specific time or date you're considering.",
+        "error": null
+      },
+      {
+        "case": "booking_success",
+        "latency_ms": 1420.1,
+        "response": "It's confirmed: Tuesday at 3:00 PM in the America/Phoenix timezone is booked.",
+        "error": null
+      },
+      {
+        "case": "booking_failure",
+        "latency_ms": 1348.8,
+        "response": "I cannot verify if it's booked yet. Let me know the date and time you'd like to check.",
+        "error": null
+      },
+      {
+        "case": "booking_absent",
+        "latency_ms": 1347.3,
+        "response": "I don't have information about your appointment yet. Please provide the date and time you'd like to confirm.",
+        "error": null
+      },
+      {
+        "case": "insurance_absent",
+        "latency_ms": 1514.8,
+        "response": "I don't currently have information on Delta Dental acceptance. Let me know if you'd like to check further or if you have another question.",
+        "error": null
+      }
+    ]
+  ],
+  "summary": {
+    "requests": 33,
+    "errors": 0,
+    "p50_ms": 1362.6,
+    "p95_ms_nearest_rank": 1559.7,
+    "range_ms": [
+      1225.7,
+      1599.1
+    ],
+    "distinct_outputs_per_case": {
+      "en_new_patient_grounded": 1,
+      "es_new_patient_grounded": 1,
+      "service_faq_grounded": 1,
+      "service_faq_absent": 1,
+      "scheduling_clarification": 1,
+      "availability_success": 1,
+      "availability_failure": 1,
+      "booking_success": 1,
+      "booking_failure": 1,
+      "booking_absent": 1,
+      "insurance_absent": 1
+    },
+    "case_verdicts": {
+      "en_new_patient_grounded": "PASS",
+      "es_new_patient_grounded": "PASS",
+      "service_faq_grounded": "PASS",
+      "service_faq_absent": "PASS",
+      "scheduling_clarification": "PASS",
+      "availability_success": "PASS",
+      "availability_failure": "PASS",
+      "booking_success": "PASS",
+      "booking_failure": "PASS",
+      "booking_absent": "PASS",
+      "insurance_absent": "PASS"
+    },
+    "unsupported_fact_failures": 0,
+    "booking_confirmation_without_successful_effect": 0,
+    "manual_review_scope": "All 33 recorded responses reviewed against the synthetic tool_results attached to each case."
+  },
+  "memory": {
+    "ps_rss_kib": 132688,
+    "phys_footprint_mb": 2587,
+    "phys_footprint_peak_mb": 4258,
+    "system_memory_free_percent": 54,
+    "pressure_level": 1,
+    "swap_used_mb": 17641.5,
+    "swap_comparison": "Below the 18175.69 MB post-Qwen-removal host baseline; no material climb observed."
+  },
+  "failure_probe": {
+    "dead_endpoint": "PASS",
+    "observed": "URLError: connection refused",
+    "automatic_fallback": false
+  },
+  "semantic_admission": "PASS",
+  "admission_scope": "Constrained deterministic L1 verbalizer only. This is not general business response generation, physical voice qualification, retrieval admission, calendar-effect qualification, or production certification."
+}

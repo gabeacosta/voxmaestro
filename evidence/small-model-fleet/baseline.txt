@@ -1,0 +1,7 @@
+Repository: gabeacosta/voxmaestro
+Main SHA: df6b154df20a8f10b7407466338c9c66d40c8126
+Branch: feat/local-small-model-fleet-v0
+uv sync --extra dev: exit 0
+uv run pytest -q (host loopback allowed): 161 passed in 4.23s, exit 0
+Sandbox attempt: 155 passed, 6 socket-bind permission errors; rerun above resolves infrastructure restriction.
+uv run ruff check src/ tests/: All checks passed, exit 0
