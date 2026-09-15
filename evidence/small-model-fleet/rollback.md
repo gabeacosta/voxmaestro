@@ -6,6 +6,12 @@ Implementation is isolated in `/Users/clue/voxmaestro-small-fleet` from baseline
 
 Rollback consists of stopping only new, positively identified fleet processes started for this branch, restoring any branch-local configuration changes, and reverting this branch's coherent commits if required. Do not kill by broad process name or port alone. Do not reset another user's checkout, delete caches, or remove existing models manually.
 
-Qwen3:8b has active dependencies and is retained. The Nomic smoke probe uses the existing Ollama service and requested one-minute model keep-alive; it does not install a service or change persistent configuration.
+The operator stated Clue had moved to cloud dependencies and explicitly authorized removal of both Qwen aliases despite the recorded local references. If a latent local consumer still requires the payload, restore it only through the owning runtime with `ollama pull qwen3:8b`, verify the digest and consumer health, and update the inventory before claiming recovery. Do not restore cache files manually.
+
+The Nomic model remains owned by the existing Ollama service. The branch-local
+retrieval worker requested numeric `keep_alive=-1`; stopping that worker does
+not stop Ollama. To roll back the route, stop only the positively identified
+retrieval worker and revert its branch commits. Use Ollama's supported API or
+CLI if the operator later chooses to unload the resident model.
 
 Any later active-runtime mutation needs its own recorded inventory, exact changed files and restoration procedure before execution; this document does not claim such a mutation or rollout happened.

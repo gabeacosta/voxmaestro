@@ -51,7 +51,7 @@
       "es"
     ],
     "disposition": "KEEP",
-    "reason": "Resident loopback Nomic lane passed the pinned synthetic EN/ES embedding and deterministic ranking admission. Production tenant corpus, persistent index, and runtime route remain separate blocked work.",
+    "reason": "Resident loopback Nomic lane passed pinned synthetic EN/ES model admission. A later branch-local slice added a persistent index and VoxMaestro text route for that synthetic corpus; production tenant corpus and physical voice remain blocked.",
     "digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
     "payload_bytes": 274302450,
     "quantization": "F16",
@@ -93,6 +93,13 @@
       "macos_phys_footprint_mb": 47,
       "macos_phys_footprint_peak_mb": 96,
       "note": "Raw tools report different accounting surfaces; values are recorded without summing them."
+    },
+    "runtime_route": {
+      "artifact": "evidence/small-model-fleet/retrieval_runtime_slice.json",
+      "endpoint": "http://127.0.0.1:8092/v1/retrieve",
+      "persistent_index": "evidence/small-model-fleet/vsai_retrieval_v0.index.json",
+      "verdict": "PASS",
+      "scope": "Synthetic-corpus text route with injected service_question intent; no production tenant corpus, L0, effects, or physical voice claim."
     }
   },
   "qwen3_8b": {
@@ -110,7 +117,8 @@
       "/Users/clue/openclaw-v2/src/core/brain.py:1430",
       "/Users/clue/openclaw-v2/src/core/brain.py:1463",
       "/Users/clue/openclaw-v2/config/kora_settings.yaml:28"
-    ]
+    ],
+    "migration_evidence": "Operator stated Clue uses cloud dependencies; stale local references were inventoried, but consumer migration was not independently exercised in this slice."
   },
   "mlx_cache": {
     "python": "/Users/clue/vsai-inference/.venv/bin/python3",

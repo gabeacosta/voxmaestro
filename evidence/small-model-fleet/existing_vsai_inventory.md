@@ -28,16 +28,20 @@ returned exactly equal vectors. Forty warm loopback requests measured 10.281 ms
 p50 and 12.924 ms p95.
 
 The resident service is admitted as `KEEP` for embedding and deterministic
-in-memory ranking. No model was downloaded. This does not admit a production
-tenant corpus, persistent index, or VoxMaestro retrieval route; those assets do
-not yet exist. Full results and provenance are in
-`nomic_retrieval_admission.json`.
+ranking. No model was downloaded. A later branch-local slice added a persistent
+index and VoxMaestro text route for this synthetic corpus; that route does not
+admit a production dental tenant corpus or physical voice. Model-admission
+results and route evidence are in `nomic_retrieval_admission.json` and
+`retrieval_runtime_slice.json`.
 
 ## Qwen3:8b — removed by explicit operator authorization
 
 Ollama inventory reports 5225387864 packed bytes, digest `560d37d519f42d65e8bb0c15004c6155dd53130d22b024e87eb32705e8a5f80b`, shared with `veynit-qwen3:8b`. This is not reclaimable disk measurement and is not RSS.
 
 Production LaunchAgent `ai.openclaw.brain` runs `/Users/clue/openclaw-v2/bin/launch-brain.sh`. That codebase pinned `ollama/qwen3:8b` in `config/settings.yaml` (lines 37,42), `src/core/brain.py` control-plane branch (line 1430) and organic fallback (line 1463). KORA settings also referenced the Mac Ollama relay. The operator stated Clue now uses cloud dependencies and explicitly authorized removal of both `qwen3:8b` and `veynit-qwen3:8b`. Both aliases shared the same digest and were removed with `ollama rm`; approximately 5225387864 packed bytes were reclaimed.
+
+The cloud migration statement is operator-provided; stale local references were
+recorded but were not exercised as successful consumers during this slice.
 
 ## Model cache and calendar
 
