@@ -1,0 +1,18 @@
+{
+  "program": "VM-SMALL-FLEET-003",
+  "date": "2026-09-14",
+  "result": "PARTIAL",
+  "l1_model": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+  "l1_constrained_verbalizer": "PASS",
+  "remote_worker_transport": "PASS",
+  "physical_voice": "NOT_RUN",
+  "co_residency": "TEST_INVALID",
+  "blocked": [
+    "Existing VSAI L0 intent contract admission",
+    "production tenant retrieval corpus/index and VoxMaestro route",
+    "real calendar write qualification",
+    "physical ASR/TTS/barge-in run"
+  ],
+  "retrieval_model": "nomic-embed-text:latest",
+  "retrieval_embedding": "PASS"
+}

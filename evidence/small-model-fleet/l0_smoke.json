@@ -1,0 +1,6 @@
+{
+  "status": "TEST_INVALID",
+  "model": "prism-ml/Ternary-Bonsai-1.7B-mlx-2bit",
+  "endpoint": "http://127.0.0.1:8081/v1",
+  "reason": "Model weights were not cached and were not launched because the measured 4B single-model RSS already exceeded the 16 GB host envelope. Shim contract tests are green; real model smoke was not run."
+}

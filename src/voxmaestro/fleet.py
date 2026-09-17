@@ -49,6 +49,7 @@ _SECRET_KEY_FRAGMENTS = (
     "token",
 )
 _CGNAT = ipaddress.ip_network("100.64.0.0/10")
+_MAX_SYSTEM_PROMPT_BYTES = 16_384
 
 
 def urllib_post(url: str, payload: Mapping[str, Any], timeout_ms: float) -> Mapping[str, Any]:
@@ -219,6 +220,14 @@ class RemoteWorkerGenerationAdapter:
         context: Mapping[str, Any],
         generation_config: Mapping[str, Any],
     ) -> str:
+        worker_context = _without_secret_material(context)
+        worker_context.pop("system_prompt", None)
+        system_prompt = generation_config.get("system_prompt")
+        if isinstance(system_prompt, str) and system_prompt.strip():
+            if len(system_prompt.encode("utf-8")) > _MAX_SYSTEM_PROMPT_BYTES:
+                raise ValueError("remote worker system_prompt exceeds 16384 bytes")
+            worker_context["system_prompt"] = system_prompt
+
         request_id = str(context.get("request_id") or context.get("call_id") or "")
         limits: dict[str, Any] = {"deadline_ms": int(self.timeout_ms)}
         max_tokens = generation_config.get("max_tokens")
@@ -232,7 +241,7 @@ class RemoteWorkerGenerationAdapter:
             "slot": self.slot,
             "task": "generate",
             "input": {"text": text},
-            "context": _without_secret_material(context),
+            "context": worker_context,
             "limits": limits,
         }
         data = await asyncio.to_thread(

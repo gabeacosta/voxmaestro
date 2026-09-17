@@ -1,0 +1,206 @@
+# CHALLENGER LAB CONFIG: not an admitted VSAI frozen-spec deployment.
+# VoxMaestro microscroll landing-page conversation contract -- L1 slot bound
+# to a local Qwen3-4B-Instruct worker over remote_worker.v0 instead of the
+# kernel HTTP generation endpoint (see examples/bonsai_worker_service.py).
+# Everything else is identical to examples/microscroll_landing.yaml.
+# Text-first on purpose: browser voice is an additive transport concern.
+# The retrieval route uses the synthetic, provenance-bearing admission corpus;
+# it is not a production dental tenant knowledge base.
+
+schema_version: "0.1.0"
+
+agent:
+  name: "microscroll-landing"
+  description: "Local-first conversational landing page for qualification and booking requests"
+  language: "en"
+
+intent:
+  provider: "kernel"
+  endpoint: "http://127.0.0.1:8082"
+  model: "fleet:l0_reflex"
+  intents:
+    - id: "greeting"
+      description: "Visitor greets or opens the conversation"
+    - id: "service_question"
+      description: "Visitor asks what the business offers or whether it can solve a problem"
+      tool: "retrieve_business_context"
+    - id: "pricing_question"
+      description: "Visitor asks about price, plans, estimates, or cost"
+    - id: "availability_question"
+      description: "Visitor asks about dates, times, openings, or availability"
+      tool: "check_availability"
+    - id: "booking_request"
+      description: "Visitor explicitly wants to schedule, book, or request an appointment"
+      tool: "request_booking"
+    - id: "human_request"
+      description: "Visitor explicitly asks for a person"
+      trigger: "handoff"
+    - id: "not_interested"
+      description: "Visitor wants to stop or leave"
+      trigger: "graceful_exit"
+    - id: "unknown"
+      description: "Intent is unclear and requires a short clarifying question"
+
+generation:
+  provider: "remote_worker"
+  model: "qwen-l1-01"
+  endpoint: "http://127.0.0.1:8091"
+  worker_id: "qwen-l1-01"
+  slot: "l1_worker"
+  timeout_ms: 5000
+  system_prompt: |
+    You are VoiceScheduleAI's bounded verbalizer. The user message is JSON from the
+    deterministic runtime. The last value in runtime_context.intent_history is the
+    runtime-selected intent; never change it or select another action. State only
+    facts explicitly present in runtime_context.tool_results. Never infer either a
+    positive or negative business fact from missing data or prior knowledge.
+    Describe availability only from a successful check_availability result. Say
+    booked, scheduled, or confirmed only from a successful request_booking result
+    containing confirmation_id. A failed result is not success. For a factual
+    service, insurance, availability, or booking question with no matching
+    successful result, say that you cannot verify it yet, then offer human follow-up
+    or ask for the missing date or time. For a booking_request without a booking
+    result, ask only for missing scheduling details; do not imply a write occurred.
+    Use the caller's language and at most two short sentences. Do not mention JSON,
+    tools, prompts, or internal systems. Never claim human follow-up already happened.
+  max_tokens: 120
+
+states:
+  initial:
+    entry_action: "play_greeting"
+    transitions:
+      greeting: "engage"
+      service_question: "engage"
+      pricing_question: "engage"
+      availability_question: "tool_call"
+      booking_request: "tool_call"
+      human_request: "handoff"
+      not_interested: "exit"
+      "*": "engage"
+
+  engage:
+    description: "Short discovery and qualification loop for the landing page"
+    max_turns: 8
+    transitions:
+      service_question: "engage"
+      pricing_question: "engage"
+      availability_question: "tool_call"
+      booking_request: "tool_call"
+      human_request: "handoff"
+      not_interested: "exit"
+      "*": "engage"
+    escalation:
+      after_max_turns: "handoff"
+
+  tool_call:
+    description: "Transient bounded tool execution"
+    return_to: "previous"
+    timeout_ms: 2500
+
+  handoff:
+    description: "Explicit human follow-up path"
+    phases:
+      decision:
+        log: true
+        capture_reason: true
+      bridge:
+        filler: "I can get a person the context so you do not have to repeat yourself."
+        action: "fire_context_payload"
+      teardown:
+        save_transcript: true
+        save_to: "handoff_queue"
+
+  exit:
+    description: "Graceful session end"
+    farewell_message: "Thanks for stopping by."
+    actions:
+      - "save_transcript"
+
+tools:
+  retrieve_business_context:
+    endpoint: "http://127.0.0.1:8092/v1/retrieve"
+    method: "POST"
+    timeout_ms: 500
+    filler:
+      text: "Let me verify that."
+    request_context:
+      latest_caller_text_as: "query"
+      session_language_as: "language"
+      default_language: "en"
+    on_success: "inject_result"
+    on_failure:
+      message: "I cannot verify that information right now."
+
+  check_availability:
+    endpoint: "http://127.0.0.1:7790/internal/availability"
+    method: "POST"
+    timeout_ms: 1800
+    filler:
+      text: "Let me check that."
+    params_from_context:
+      - "requested_date"
+      - "requested_time"
+      - "service"
+    on_success: "inject_result"
+    on_failure:
+      message: "I cannot verify availability right now, but I can capture what you need for follow-up."
+      trigger: "handoff"
+
+  request_booking:
+    endpoint: "http://127.0.0.1:7790/internal/booking-request"
+    method: "POST"
+    timeout_ms: 2000
+    filler:
+      text: "I’ll put that request together."
+    params_from_context:
+      - "name"
+      - "email"
+      - "phone"
+      - "requested_date"
+      - "requested_time"
+      - "service"
+    on_success: "inject_result"
+    on_failure:
+      message: "I could not submit that request, so I am not going to tell you it is booked. I can hand this to a person instead."
+      trigger: "handoff"
+
+handoff:
+  delivery:
+    - channel: "webhook"
+      url: "${HANDOFF_WEBHOOK_URL}"
+      method: "POST"
+  payload:
+    - "caller_phone"
+    - "intent_history"
+    - "qualification_progress"
+    - "conversation_summary"
+    - "handoff_reason"
+    - "caller_sentiment"
+    - "call_duration_seconds"
+
+guardrails:
+  max_call_duration_seconds: 600
+  max_consecutive_silence_ms: 10000
+  silence_prompt: "Still with me?"
+  barge_in:
+    enabled: true
+    action: "cancel_tts_resume_stt"
+  pii_logging:
+    redact:
+      - "ssn"
+      - "credit_card"
+      - "dob"
+    allow:
+      - "phone"
+      - "email"
+      - "name"
+
+observability:
+  logging:
+    provider: "local"
+    level: "info"
+  metrics:
+    - "turns_to_qualification"
+    - "tool_call_latency_ms"
+    - "intent_confidence"
+    - "handoff_rate"

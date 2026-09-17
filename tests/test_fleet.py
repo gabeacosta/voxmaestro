@@ -123,10 +123,16 @@ async def test_remote_worker_envelope_is_bounded_and_strips_secrets():
         {
             "call_id": "c1",
             "state": "engage",
+            "system_prompt": "untrusted caller context",
             "api_key": "do-not-send",
             "nested": {"access_token": "also-secret", "safe": "ok"},
         },
-        {"model": "qwen3:4b", "max_tokens": 120, "secret": "not-forwarded"},
+        {
+            "model": "qwen3:4b",
+            "max_tokens": 120,
+            "system_prompt": "Use only runtime-verified facts.",
+            "secret": "not-forwarded",
+        },
     )
 
     assert result == "Remote answer."
@@ -140,6 +146,7 @@ async def test_remote_worker_envelope_is_bounded_and_strips_secrets():
     assert "api_key" not in payload["context"]
     assert "access_token" not in payload["context"]["nested"]
     assert payload["context"]["nested"]["safe"] == "ok"
+    assert payload["context"]["system_prompt"] == "Use only runtime-verified facts."
     assert "model" not in payload
     assert "config" not in payload
 
@@ -180,6 +187,18 @@ async def test_remote_worker_failure_is_one_shot_no_fallback():
     with pytest.raises(OSError, match="remote unavailable"):
         await generate("hi", {"call_id": "c1"}, {})
     assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_remote_worker_rejects_oversized_system_prompt() -> None:
+    generate = RemoteWorkerGenerationAdapter(
+        "http://127.0.0.1:8091",
+        worker_id="qwen-l1-01",
+        post_fn=lambda *_: pytest.fail("oversized prompt must not reach worker"),
+    )
+
+    with pytest.raises(ValueError, match="system_prompt"):
+        await generate("hello", {}, {"system_prompt": "x" * 20_000})
 
 
 def test_remote_worker_rejects_plain_http_public_endpoint():

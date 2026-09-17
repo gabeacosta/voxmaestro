@@ -20,6 +20,15 @@ import urllib.request
 from collections.abc import Mapping
 from typing import Any
 
+_MAX_SEMANTIC_INPUT_BYTES = 16_384
+_SEMANTIC_CONTEXT_FIELDS = (
+    "state",
+    "previous_state",
+    "intent_history",
+    "tool_results",
+    "conversation_history",
+)
+
 
 class LocalInferenceError(RuntimeError):
     """The pinned local inference runtime failed or violated the response contract."""
@@ -71,7 +80,23 @@ class OpenAICompatInferenceBackend:
         system_prompt = context.get("system_prompt")
         if isinstance(system_prompt, str) and system_prompt.strip():
             messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": text})
+        runtime_context = {
+            field: context[field]
+            for field in _SEMANTIC_CONTEXT_FIELDS
+            if field in context
+        }
+        try:
+            semantic_input = json.dumps(
+                {"current_request": text, "runtime_context": runtime_context},
+                ensure_ascii=False,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+        except (TypeError, ValueError) as exc:
+            raise LocalInferenceError("semantic context is not valid JSON") from exc
+        if len(semantic_input.encode("utf-8")) > _MAX_SEMANTIC_INPUT_BYTES:
+            raise LocalInferenceError("semantic context exceeds 16384 bytes")
+        messages.append({"role": "user", "content": semantic_input})
 
         payload: dict[str, Any] = {
             "model": self.model,

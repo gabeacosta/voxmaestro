@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "tests": "tests/test_intent_worker.py",
+  "properties": [
+    "legal intent only",
+    "malformed, illegal, missing, non-finite, low-confidence output becomes unknown",
+    "exactly one fixed loopback inference request",
+    "no retry or fallback",
+    "credential-like input rejected and headers/context not forwarded",
+    "unknown paths return 404",
+    "loopback-only model endpoint",
+    "tools rejected"
+  ],
+  "real_model": false
+}
