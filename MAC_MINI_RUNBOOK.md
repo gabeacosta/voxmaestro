@@ -314,3 +314,38 @@ The final artifact is
 Only `PASS_REFLEX_PHYSICAL_ADMISSION` clears the physical evidence gate.
 It still does not authorize the reflex to own routing; that remains a separate
 runtime-policy decision.
+
+---
+
+## 8. Recover legacy real-call labels without hand-labeling every turn
+
+The older conductor wrote training rows outside Git under
+`~/.voxmaestro/training/examples_*.jsonl`. The importer deliberately does not
+treat every historical row as truth:
+
+- `bland_replay` + confidence 1.0 can use the frozen legacy-to-reflex map;
+- `bland_live` stays review-only because its label came from a live model;
+- `transfer_agent`, `opt_out`, and `callback_request` are quarantined;
+- replay rows without a call ID are quarantined as weak provenance;
+- duplicate replay rows are ignored by one-way source digest;
+- phone numbers and email addresses are redacted from benchmark text;
+- raw call IDs are never persisted in staging or the final corpus;
+- output stays under `~/.voxmaestro/reflex/` by default, not in the public repo.
+
+If those historical replays were real calls and this agent was English-only:
+
+    python examples/import_legacy_reflex_corpus.py \
+      --default-language en \
+      --assert-replays-are-real-calls
+
+Only `READY_FOR_VM_REFLEX_001` means the recovered ground-truth subset has
+enough evidence: at least 30 final rows and at least 59 tool-needed positives.
+
+Then run:
+
+    python examples/run_reflex_physical_admission.py \
+      --corpus ~/.voxmaestro/reflex/reflex-real-turns.jsonl \
+      --model-path /absolute/path/to/Qwen3-0.6B-4bit
+
+If the importer reports insufficient labels, do not pad with synthetic turns
+or `bland_live` predictions. That is a data-acquisition blocker.
