@@ -12,6 +12,7 @@ import hashlib
 import json
 import math
 import platform
+import re
 import sys
 from pathlib import Path
 from typing import Any, Iterable
@@ -37,6 +38,169 @@ _REQUIRED_KEYS = {
     "expected_language",
     "provenance",
 }
+
+
+
+LEGACY_REFLEX_MAP: dict[str, tuple[str, bool]] = {
+    "book_appointment": ("schedule", True),
+    "check_availability": ("schedule", True),
+    "reschedule": ("schedule", True),
+    "general_inquiry": ("faq", True),
+    "pricing": ("pricing", False),
+    "complaints": ("complaint", False),
+    "unknown": ("off-script", False),
+}
+LEGACY_AMBIGUOUS_INTENTS = {
+    "transfer_agent",
+    "opt_out",
+    "callback_request",
+}
+_EMAIL_RE = re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b")
+_PHONE_RE = re.compile(
+    r"(?<!\d)(?:\+?1[ .-]?)?(?:\(?\d{3}\)?[ .-]?)\d{3}[ .-]?\d{4}(?!\d)"
+)
+
+
+def redact_reflex_text(text: str) -> str:
+    """Remove common direct-contact PII that reflex evaluation does not need."""
+
+    return _PHONE_RE.sub("[phone]", _EMAIL_RE.sub("[email]", text))
+
+
+def stage_legacy_training_row(
+    row: Any,
+    *,
+    default_language: str | None = None,
+) -> dict[str, Any]:
+    """Convert one legacy harvester row into a non-admissible staging record.
+
+    Only bland_replay can become automatically label-ready because the legacy
+    harvester explicitly treated replay intent labels as ground truth.
+    bland_live remains review-only: a model-generated label must not grade
+    another classifier.
+    """
+
+    if default_language not in {None, "en", "es"}:
+        raise ValueError("default_language must be en, es, or None")
+    if not isinstance(row, dict):
+        return {"status": "excluded", "reason": "row_not_object"}
+
+    text = row.get("text")
+    intent = row.get("intent")
+    source = row.get("source")
+    call_id = str(row.get("call_id") or "")
+    if not isinstance(text, str) or not text.strip():
+        return {"status": "excluded", "reason": "missing_text"}
+    if not isinstance(intent, str) or not intent:
+        return {"status": "excluded", "reason": "missing_intent"}
+    if source not in {"bland_replay", "bland_live"}:
+        return {"status": "excluded", "reason": "unsupported_source"}
+
+    digest_material = "\x1f".join((call_id, text, intent, str(source))).encode("utf-8")
+    source_digest = hashlib.sha256(digest_material).hexdigest()
+    base = {
+        "source_digest": source_digest,
+        "transcript": redact_reflex_text(text.strip()),
+        "legacy_intent": intent,
+        "legacy_source": source,
+        "legacy_confidence": row.get("confidence"),
+        "agent_name": row.get("agent_name"),
+    }
+
+    if intent in LEGACY_AMBIGUOUS_INTENTS:
+        return {**base, "status": "needs_intent_review", "reason": "ambiguous_legacy_intent"}
+    mapping = LEGACY_REFLEX_MAP.get(intent)
+    if mapping is None:
+        return {**base, "status": "needs_intent_review", "reason": "unmapped_legacy_intent"}
+
+    proposed_intent, proposed_tool_needed = mapping
+    base.update(
+        {
+            "proposed_intent": proposed_intent,
+            "proposed_tool_needed": proposed_tool_needed,
+        }
+    )
+
+    row_language = row.get("language")
+    language_source = None
+    if row_language in {"en", "es"}:
+        language = row_language
+        language_source = "legacy-row"
+    elif default_language is not None:
+        language = default_language
+        language_source = "operator-default"
+    else:
+        language = None
+
+    if source == "bland_live":
+        return {
+            **base,
+            "expected_language": language,
+            "language_source": language_source,
+            "status": "needs_label_review",
+            "reason": "live_classifier_label_not_ground_truth",
+        }
+
+    confidence = row.get("confidence")
+    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
+        return {**base, "status": "needs_label_review", "reason": "replay_confidence_missing"}
+    if float(confidence) < 0.999:
+        return {**base, "status": "needs_label_review", "reason": "replay_confidence_not_ground_truth"}
+
+    if language is None:
+        return {**base, "status": "needs_language", "reason": "language_unresolved"}
+
+    return {
+        **base,
+        "expected_language": language,
+        "language_source": language_source,
+        "status": "ready_replay",
+    }
+
+
+def finalize_legacy_replay_rows(
+    staged_rows: list[dict[str, Any]],
+    *,
+    assert_replays_are_real_calls: bool,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Emit admission rows only from explicit, ground-truth replay candidates."""
+
+    ready = [row for row in staged_rows if row.get("status") == "ready_replay"]
+    final: list[dict[str, Any]] = []
+    if assert_replays_are_real_calls:
+        for index, row in enumerate(ready, start=1):
+            final.append(
+                {
+                    "id": f"legacy-replay-{index:05d}-{row['source_digest'][:12]}",
+                    "transcript": row["transcript"],
+                    "expected_intent": row["proposed_intent"],
+                    "expected_tool_needed": bool(row["proposed_tool_needed"]),
+                    "expected_language": row["expected_language"],
+                    "provenance": "real",
+                    "notes": (
+                        "legacy_source=bland_replay;"
+                        f"legacy_intent={row['legacy_intent']};"
+                        f"language_source={row['language_source']};"
+                        "direct_contact_pii_redacted=true"
+                    ),
+                }
+            )
+
+    positive_count = sum(1 for row in final if row["expected_tool_needed"])
+    status_counts: dict[str, int] = {}
+    for row in staged_rows:
+        status = str(row.get("status") or "unknown")
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    summary = {
+        "staged_rows": len(staged_rows),
+        "status_counts": status_counts,
+        "real_call_assertion": assert_replays_are_real_calls,
+        "final_rows": len(final),
+        "final_tool_positive_rows": positive_count,
+        "admission_shape_sufficient": len(final) >= 30 and positive_count >= 59,
+    }
+    return final, summary
 
 
 def _validate_row(value: Any, line_number: int) -> dict[str, Any]:

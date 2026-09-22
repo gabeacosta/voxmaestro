@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import hashlib
+import json
 
 import pytest
 
-from voxmaestro.reflex.admission import adjudicate_physical, evaluate_rows
+from voxmaestro.reflex.admission import (
+    adjudicate_physical,
+    evaluate_rows,
+    finalize_legacy_replay_rows,
+    redact_reflex_text,
+    stage_legacy_training_row,
+)
 from voxmaestro.reflex.shapes import GateDecision, Language, ReflexIntent
 
 
@@ -199,3 +206,136 @@ def test_physical_admission_rejects_child_process_failure(admission_ok, voice_ok
     )
 
     assert report["verdict"] == "TEST_INVALID"
+
+
+
+def _legacy_row(**overrides):
+    row = {
+        "text": "Can you book me Thursday at 3? Call 702-555-1212",
+        "intent": "book_appointment",
+        "source": "bland_replay",
+        "call_id": "call-secret-123",
+        "state": "qualification",
+        "confidence": 1.0,
+        "agent_name": "dealiq-qualifier",
+    }
+    row.update(overrides)
+    return row
+
+
+def test_legacy_replay_maps_to_reflex_without_persisting_call_id():
+    staged = stage_legacy_training_row(_legacy_row(), default_language="en")
+
+    assert staged["status"] == "ready_replay"
+    assert staged["proposed_intent"] == "schedule"
+    assert staged["proposed_tool_needed"] is True
+    assert staged["expected_language"] == "en"
+    assert staged["language_source"] == "operator-default"
+    assert "call-secret-123" not in json.dumps(staged)
+    assert "[phone]" in staged["transcript"]
+
+
+@pytest.mark.parametrize(
+    ("legacy_intent", "intent", "tool"),
+    [
+        ("check_availability", "schedule", True),
+        ("reschedule", "schedule", True),
+        ("general_inquiry", "faq", True),
+        ("pricing", "pricing", False),
+        ("complaints", "complaint", False),
+        ("unknown", "off-script", False),
+    ],
+)
+def test_legacy_mapping_is_explicit(legacy_intent, intent, tool):
+    staged = stage_legacy_training_row(
+        _legacy_row(intent=legacy_intent),
+        default_language="en",
+    )
+
+    assert staged["status"] == "ready_replay"
+    assert staged["proposed_intent"] == intent
+    assert staged["proposed_tool_needed"] is tool
+
+
+@pytest.mark.parametrize("legacy_intent", ["transfer_agent", "opt_out", "callback_request"])
+def test_legacy_ambiguous_intents_are_quarantined(legacy_intent):
+    staged = stage_legacy_training_row(
+        _legacy_row(intent=legacy_intent),
+        default_language="en",
+    )
+
+    assert staged["status"] == "needs_intent_review"
+
+
+def test_legacy_live_labels_cannot_become_ground_truth_automatically():
+    staged = stage_legacy_training_row(
+        _legacy_row(source="bland_live"),
+        default_language="en",
+    )
+
+    assert staged["status"] == "needs_label_review"
+
+
+def test_legacy_replay_requires_language_resolution():
+    staged = stage_legacy_training_row(_legacy_row())
+
+    assert staged["status"] == "needs_language"
+
+
+def test_legacy_replay_requires_ground_truth_confidence():
+    staged = stage_legacy_training_row(
+        _legacy_row(confidence=0.8),
+        default_language="en",
+    )
+
+    assert staged["status"] == "needs_label_review"
+
+
+def test_finalize_requires_explicit_real_call_assertion():
+    staged = [
+        stage_legacy_training_row(
+            _legacy_row(call_id=f"call-{index}"),
+            default_language="en",
+        )
+        for index in range(60)
+    ]
+
+    final, summary = finalize_legacy_replay_rows(
+        staged,
+        assert_replays_are_real_calls=False,
+    )
+
+    assert final == []
+    assert summary["final_rows"] == 0
+    assert summary["real_call_assertion"] is False
+    assert summary["admission_shape_sufficient"] is False
+
+
+def test_finalize_can_meet_shape_gate_from_ground_truth_tool_replays():
+    staged = [
+        stage_legacy_training_row(
+            _legacy_row(call_id=f"call-{index}", text=f"Book me slot {index}"),
+            default_language="en",
+        )
+        for index in range(59)
+    ]
+
+    final, summary = finalize_legacy_replay_rows(
+        staged,
+        assert_replays_are_real_calls=True,
+    )
+
+    assert len(final) == 59
+    assert summary["final_tool_positive_rows"] == 59
+    assert summary["admission_shape_sufficient"] is True
+    assert all(row["provenance"] == "real" for row in final)
+    assert all("call_id" not in row for row in final)
+
+
+def test_redact_reflex_text_removes_common_phone_and_email():
+    text = redact_reflex_text("Email Gabe@example.com or call (702) 555-1212.")
+
+    assert "Gabe@example.com" not in text
+    assert "702" not in text
+    assert "[email]" in text
+    assert "[phone]" in text
