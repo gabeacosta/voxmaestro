@@ -14,7 +14,6 @@ import argparse
 import hashlib
 import importlib.util
 import json
-import os
 import socket
 import subprocess
 import sys
@@ -87,6 +86,16 @@ def _preflight(corpus: Path, model_path: Path) -> dict[str, Any]:
     }
 
 
+def _require_port_free(host: str, port: int) -> None:
+    try:
+        with socket.create_connection((host, port), timeout=0.2):
+            raise RuntimeError(f"{host}:{port} is already in use")
+    except ConnectionRefusedError:
+        return
+    except OSError:
+        return
+
+
 def _wait_tcp(host: str, port: int, process: subprocess.Popen, timeout_s: float) -> None:
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
@@ -141,7 +150,21 @@ def main() -> int:
     args = parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     final_path = args.out / "physical-admission.json"
-    preflight = _preflight(args.corpus, args.model_path)
+    try:
+        preflight = _preflight(args.corpus, args.model_path)
+        _require_port_free("127.0.0.1", args.port)
+    except Exception as error:
+        report = {
+            "contract_version": "reflex-physical-admission.v1",
+            "verdict": "TEST_INVALID",
+            "authority": "EVIDENCE_ONLY_NOT_ROUTING_AUTHORITY",
+            "stage": "preflight",
+            "error": f"{type(error).__name__}: {error}",
+        }
+        _write(final_path, report)
+        print(json.dumps({"evidence": str(final_path), "verdict": report["verdict"]}))
+        return 2
+
     if not all(preflight["checks"].values()):
         report = {
             "contract_version": "reflex-physical-admission.v1",
