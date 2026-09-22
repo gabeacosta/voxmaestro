@@ -124,3 +124,34 @@ served through `mlx_vlm.server`. Do not add it to the permanent fleet unless it
 passes this admission gate under representative load.
 
 Do not use the existing `mlx-lm.server` path for this reflex benchmark.
+
+
+## VM-REFLEX-001 physical admission
+
+The bounded physical challenger is frozen as:
+
+- model: `mlx-community/Qwen3-0.6B-4bit`
+- expected `model.safetensors` SHA-256:
+  `392e8d466d56100ada00eb82031fb854297fc9e389b7d303eba3af114e87bce2`
+- serving engine: `mlx-vlm-llguidance`
+- no speculative decoding
+- no KV-cache quantization
+- sequential reflex requests
+- no hosted fallback
+
+The one-shot Mac runner does not install or download anything:
+
+```bash
+python examples/run_reflex_physical_admission.py \
+  --corpus /path/to/reflex-real-turns.jsonl \
+  --model-path /path/to/Qwen3-0.6B-4bit
+```
+
+It starts the pinned local model server, loads the real Pocket TTS and
+faster-whisper acoustic witness, waits until that witness is resident and ready,
+then runs model admission while the voice workload remains alive. The top-level
+result is `TEST_INVALID` if the witness ends before the reflex benchmark,
+lacks acoustic ASR evidence, or does not itself qualify.
+
+The runner refuses to create the model download or real-turn corpus. Those are
+inputs, not evidence the benchmark is allowed to manufacture.

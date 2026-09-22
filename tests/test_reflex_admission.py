@@ -4,7 +4,7 @@ import hashlib
 
 import pytest
 
-from voxmaestro.reflex.admission import evaluate_rows
+from voxmaestro.reflex.admission import adjudicate_physical, evaluate_rows
 from voxmaestro.reflex.shapes import GateDecision, Language, ReflexIntent
 
 
@@ -131,3 +131,71 @@ async def test_synthetic_rows_do_not_count_as_admission_evidence():
     assert report["verdict"] == "BLOCKED"
     assert report["corpus"]["real_rows_evaluated"] == 1
     assert report["corpus"]["synthetic_rows_ignored"] == 100
+
+
+
+def _physical_voice_evidence(*, verdict="PASS", complete=True, acoustic=True):
+    return {
+        "qualification": {"verdict": verdict},
+        "lane": {"evidence_complete": complete},
+        "acoustic_crosstalk_measured": acoustic,
+    }
+
+
+def test_physical_admission_requires_complete_voice_witness():
+    model = {"verdict": "PASS_REFLEX_MODEL_ADMISSION"}
+
+    report = adjudicate_physical(
+        model,
+        _physical_voice_evidence(),
+        voice_alive_through_benchmark=True,
+    )
+
+    assert report["verdict"] == "PASS_REFLEX_PHYSICAL_ADMISSION"
+    assert all(report["checks"].values())
+
+
+@pytest.mark.parametrize(
+    ("voice", "alive"),
+    [
+        (_physical_voice_evidence(verdict="FAIL"), True),
+        (_physical_voice_evidence(complete=False), True),
+        (_physical_voice_evidence(acoustic=False), True),
+        (_physical_voice_evidence(), False),
+    ],
+)
+def test_physical_admission_marks_incomplete_or_bad_witness_invalid(voice, alive):
+    report = adjudicate_physical(
+        {"verdict": "PASS_REFLEX_MODEL_ADMISSION"},
+        voice,
+        voice_alive_through_benchmark=alive,
+    )
+
+    assert report["verdict"] == "TEST_INVALID"
+
+
+def test_physical_admission_blocks_model_after_valid_voice_witness():
+    report = adjudicate_physical(
+        {"verdict": "BLOCKED"},
+        _physical_voice_evidence(),
+        voice_alive_through_benchmark=True,
+    )
+
+    assert report["verdict"] == "BLOCKED"
+
+
+
+@pytest.mark.parametrize(
+    ("admission_ok", "voice_ok"),
+    [(False, True), (True, False), (False, False)],
+)
+def test_physical_admission_rejects_child_process_failure(admission_ok, voice_ok):
+    report = adjudicate_physical(
+        {"verdict": "PASS_REFLEX_MODEL_ADMISSION"},
+        _physical_voice_evidence(),
+        voice_alive_through_benchmark=True,
+        admission_process_ok=admission_ok,
+        voice_process_ok=voice_ok,
+    )
+
+    assert report["verdict"] == "TEST_INVALID"
