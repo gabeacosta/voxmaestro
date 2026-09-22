@@ -339,3 +339,29 @@ def test_redact_reflex_text_removes_common_phone_and_email():
     assert "702" not in text
     assert "[email]" in text
     assert "[phone]" in text
+
+
+
+def test_legacy_replay_without_call_id_is_not_admissible():
+    staged = stage_legacy_training_row(
+        _legacy_row(call_id=""),
+        default_language="en",
+    )
+
+    assert staged["status"] == "needs_provenance"
+
+
+def test_finalize_deduplicates_same_harvested_replay():
+    row = stage_legacy_training_row(_legacy_row(), default_language="en")
+    staged = [row for _ in range(100)]
+
+    final, summary = finalize_legacy_replay_rows(
+        staged,
+        assert_replays_are_real_calls=True,
+    )
+
+    assert len(final) == 1
+    assert summary["ready_replay_rows"] == 100
+    assert summary["duplicate_ready_rows_ignored"] == 99
+    assert summary["unique_ready_replay_rows"] == 1
+    assert summary["admission_shape_sufficient"] is False

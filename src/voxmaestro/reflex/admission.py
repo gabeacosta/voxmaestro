@@ -40,7 +40,6 @@ _REQUIRED_KEYS = {
 }
 
 
-
 LEGACY_REFLEX_MAP: dict[str, tuple[str, bool]] = {
     "book_appointment": ("schedule", True),
     "check_availability": ("schedule", True),
@@ -95,6 +94,8 @@ def stage_legacy_training_row(
         return {"status": "excluded", "reason": "missing_intent"}
     if source not in {"bland_replay", "bland_live"}:
         return {"status": "excluded", "reason": "unsupported_source"}
+    if source == "bland_replay" and not call_id:
+        return {"status": "needs_provenance", "reason": "replay_call_id_missing"}
 
     digest_material = "\x1f".join((call_id, text, intent, str(source))).encode("utf-8")
     source_digest = hashlib.sha256(digest_material).hexdigest()
@@ -166,9 +167,20 @@ def finalize_legacy_replay_rows(
     """Emit admission rows only from explicit, ground-truth replay candidates."""
 
     ready = [row for row in staged_rows if row.get("status") == "ready_replay"]
+    unique_ready: list[dict[str, Any]] = []
+    seen_source_digests: set[str] = set()
+    duplicate_ready_rows = 0
+    for row in ready:
+        digest = str(row["source_digest"])
+        if digest in seen_source_digests:
+            duplicate_ready_rows += 1
+            continue
+        seen_source_digests.add(digest)
+        unique_ready.append(row)
+
     final: list[dict[str, Any]] = []
     if assert_replays_are_real_calls:
-        for index, row in enumerate(ready, start=1):
+        for index, row in enumerate(unique_ready, start=1):
             final.append(
                 {
                     "id": f"legacy-replay-{index:05d}-{row['source_digest'][:12]}",
@@ -196,6 +208,9 @@ def finalize_legacy_replay_rows(
         "staged_rows": len(staged_rows),
         "status_counts": status_counts,
         "real_call_assertion": assert_replays_are_real_calls,
+        "ready_replay_rows": len(ready),
+        "duplicate_ready_rows_ignored": duplicate_ready_rows,
+        "unique_ready_replay_rows": len(unique_ready),
         "final_rows": len(final),
         "final_tool_positive_rows": positive_count,
         "admission_shape_sufficient": len(final) >= 30 and positive_count >= 59,
