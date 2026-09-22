@@ -281,3 +281,36 @@ uv run python examples/serve_gateway.py --voice --mic
 # 4b (via GitHub UI: full_matrix=true) or manually:
 python examples/run_wt_voice_tts_001.py --language en --sessions 4 --runs 3 --quantize --use-whisper-crosstalk-check
 ```
+
+
+---
+
+## 7. Reflex physical admission (VM-REFLEX-001)
+
+This is separate from the older L0/L1 fleet admission. The first challenger is
+`mlx-community/Qwen3-0.6B-4bit`; do not promote it merely because it is small.
+
+Prerequisites are intentionally explicit and are **not** auto-installed by the
+runner:
+
+- `mlx-vlm` with its llguidance structured-output path;
+- `pocket-tts`;
+- `faster-whisper`;
+- the candidate model already downloaded to a local directory;
+- a reviewed JSONL corpus with >=30 real turns and >=59 real tool-needed
+  positives.
+
+Then run:
+
+```bash
+python examples/run_reflex_physical_admission.py \
+  --corpus /absolute/path/to/reflex-real-turns.jsonl \
+  --model-path /absolute/path/to/Qwen3-0.6B-4bit
+```
+
+The final artifact is
+`evidence/reflex-admission/VM-REFLEX-001/physical-admission.json`.
+
+Only `PASS_REFLEX_PHYSICAL_ADMISSION` clears the physical evidence gate.
+It still does not authorize the reflex to own routing; that remains a separate
+runtime-policy decision.

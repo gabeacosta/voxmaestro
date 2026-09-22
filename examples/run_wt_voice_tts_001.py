@@ -168,6 +168,25 @@ async def run_lane(
             backend.open_session(session_id, voice)
             sessions.append((session_id, voice))
 
+        if args.ready_file is not None:
+            args.ready_file.parent.mkdir(parents=True, exist_ok=True)
+            args.ready_file.write_text(
+                json.dumps(
+                    {
+                        "schema": "wt-voice-load-ready.v1",
+                        "backend": caps.backend_id,
+                        "backend_version": caps.backend_version,
+                        "language": args.language,
+                        "sessions": args.sessions,
+                        "quantization": quantization,
+                        "acoustic_transcriber_loaded": transcriber is not None,
+                        "ready_monotonic_s": time.monotonic(),
+                    },
+                    sort_keys=True,
+                )
+                + "\n"
+            )
+
         observations: list[TTSRunObservation] = []
         raw_runs: list[dict] = []
         crosstalk_findings: list[dict] = []
@@ -270,6 +289,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--voice", default="alba")
     parser.add_argument("--quantize", action="store_true")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    parser.add_argument(
+        "--ready-file",
+        type=Path,
+        default=None,
+        help=(
+            "Optional readiness witness written only after the real TTS backend "
+            "and requested acoustic transcriber are loaded and sessions are open."
+        ),
+    )
     parser.add_argument(
         "--use-whisper-crosstalk-check",
         action="store_true",

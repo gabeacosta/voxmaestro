@@ -242,6 +242,55 @@ async def evaluate_rows(
     }
 
 
+
+def adjudicate_physical(
+    admission_report: dict[str, Any],
+    voice_evidence: dict[str, Any],
+    *,
+    voice_alive_through_benchmark: bool,
+) -> dict[str, Any]:
+    """Deterministically combine model admission with a physical voice-load witness."""
+
+    qualification = voice_evidence.get("qualification")
+    lane = voice_evidence.get("lane")
+    witness_complete = (
+        isinstance(qualification, dict)
+        and qualification.get("verdict") == "PASS"
+        and isinstance(lane, dict)
+        and lane.get("evidence_complete") is True
+        and voice_evidence.get("acoustic_crosstalk_measured") is True
+        and voice_alive_through_benchmark
+    )
+    checks = {
+        "voice_witness_alive_through_benchmark": voice_alive_through_benchmark,
+        "voice_witness_qualification_pass": (
+            isinstance(qualification, dict)
+            and qualification.get("verdict") == "PASS"
+        ),
+        "voice_witness_evidence_complete": (
+            isinstance(lane, dict) and lane.get("evidence_complete") is True
+        ),
+        "voice_witness_acoustic_asr_measured": (
+            voice_evidence.get("acoustic_crosstalk_measured") is True
+        ),
+        "reflex_model_admission_pass": (
+            admission_report.get("verdict") == "PASS_REFLEX_MODEL_ADMISSION"
+        ),
+    }
+    if not witness_complete:
+        verdict = "TEST_INVALID"
+    elif not checks["reflex_model_admission_pass"]:
+        verdict = "BLOCKED"
+    else:
+        verdict = "PASS_REFLEX_PHYSICAL_ADMISSION"
+    return {
+        "contract_version": "reflex-physical-admission.v1",
+        "verdict": verdict,
+        "authority": "EVIDENCE_ONLY_NOT_ROUTING_AUTHORITY",
+        "checks": checks,
+    }
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run VoxMaestro reflex model admission")
     parser.add_argument("--corpus", type=Path, required=True)
