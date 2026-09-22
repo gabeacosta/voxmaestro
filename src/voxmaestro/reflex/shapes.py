@@ -88,8 +88,15 @@ class GateDecision:
                 raise ValueError("ok decisions require model identity")
             if self.fallback_reason is not None:
                 raise ValueError("ok decisions cannot carry fallback_reason")
-        elif not self.fallback_reason:
-            raise ValueError("fallback decisions require fallback_reason")
+        else:
+            if not self.fallback_reason:
+                raise ValueError("fallback decisions require fallback_reason")
+            if (
+                self.intent is not None
+                or self.tool_needed_probability is not None
+                or self.language is not None
+            ):
+                raise ValueError("fallback decisions cannot carry a classification")
 
     @property
     def usable(self) -> bool:

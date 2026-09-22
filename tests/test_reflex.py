@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-from types import SimpleNamespace
-
 import pytest
 
 from voxmaestro.reflex import (
