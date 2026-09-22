@@ -22,6 +22,7 @@ from .conductor import (
     StateMachine,
     TransitionResult,
 )
+from .reflex.gate import ReflexGate
 
 logger = logging.getLogger("voxmaestro.runtime")
 
@@ -292,6 +293,7 @@ class VoxMaestroRuntime:
         tool_executor: Optional[ToolExecutor] = None,
         handoff_executor: Optional[HandoffExecutor] = None,
         intent_classifier: Optional[IntentClassifier] = None,
+        reflex_gate: Optional[ReflexGate] = None,
         dry_run: bool = False,
     ):
         SchemaLoader._validate(config)
@@ -300,6 +302,7 @@ class VoxMaestroRuntime:
         self.tools = RuntimeToolBridge(config, tool_executor, dry_run=dry_run)
         self.handoff = RuntimeHandoff(config, handoff_executor, dry_run=dry_run)
         self.intent_classifier = intent_classifier
+        self.reflex_gate = reflex_gate
         self.guardrails = config.get("guardrails", {})
 
     @classmethod
@@ -338,6 +341,7 @@ class VoxMaestroRuntime:
     ) -> dict[str, Any]:
         result: dict[str, Any] = {
             "response_text": None,
+            "reflex": None,
             "filler": None,
             "tool_result": None,
             "generation_context": None,
@@ -347,6 +351,22 @@ class VoxMaestroRuntime:
         if context.phase is CallPhase.EXITED:
             result["action"] = "ignored"
             return result
+
+        if self.reflex_gate:
+            reflex_decision = await self.reflex_gate.classify(caller_text)
+            result["reflex"] = reflex_decision.as_dict()
+            if on_metric:
+                telemetry = reflex_decision.telemetry()
+                await on_metric(
+                    "reflex_latency_ms",
+                    reflex_decision.latency_ms,
+                    telemetry,
+                )
+                await on_metric(
+                    "reflex_decision",
+                    1.0 if reflex_decision.usable else 0.0,
+                    telemetry,
+                )
 
         resolved_intent = intent or await self._classify(caller_text, context)
         context.add_turn("caller", caller_text, intent=resolved_intent)
