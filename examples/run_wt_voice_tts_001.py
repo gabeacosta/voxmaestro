@@ -168,9 +168,10 @@ async def run_lane(
             backend.open_session(session_id, voice)
             sessions.append((session_id, voice))
 
-        if args.ready_file is not None:
-            args.ready_file.parent.mkdir(parents=True, exist_ok=True)
-            args.ready_file.write_text(
+        ready_file = getattr(args, "ready_file", None)
+        if ready_file is not None:
+            ready_file.parent.mkdir(parents=True, exist_ok=True)
+            ready_file.write_text(
                 json.dumps(
                     {
                         "schema": "wt-voice-load-ready.v1",
