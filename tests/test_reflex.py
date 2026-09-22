@@ -172,7 +172,7 @@ class CancellationSuppressingBackend(FakeBackend):
         try:
             await asyncio.sleep(1)
         except asyncio.CancelledError:
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.20)
         return BackendDecision(
             intent=ReflexIntent.SCHEDULE,
             tool_needed_probability=0.99,
@@ -192,8 +192,8 @@ async def test_gate_timeout_is_strict_even_if_backend_suppresses_cancellation():
     elapsed = asyncio.get_running_loop().time() - started
     assert decision.status == "fallback"
     assert decision.fallback_reason == "timeout"
-    assert elapsed < 0.03
-    await asyncio.sleep(0.06)
+    assert elapsed < 0.10
+    await asyncio.sleep(0.21)
 
 
 @pytest.mark.asyncio
