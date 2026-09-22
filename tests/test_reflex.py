@@ -4,6 +4,7 @@ import asyncio
 import json
 import pytest
 
+from voxmaestro.reflex.backends import LocalSchemaBackend
 from voxmaestro.reflex import (
     BackendDecision,
     GateDecision,
@@ -215,3 +216,25 @@ async def test_reflex_metric_failure_never_breaks_turn():
 
     assert result["state"] == "qualification"
     assert session.context.intent_history == ["schedule_appointment"]
+
+
+
+def test_local_schema_backend_requires_admitted_schema_engine():
+    with pytest.raises(ValueError, match="schema_engine"):
+        LocalSchemaBackend(
+            model_id="test-model",
+            model_hash="sha256:test",
+            schema_engine="mlx-lm-unconstrained",
+        )
+
+
+@pytest.mark.asyncio
+async def test_local_schema_backend_refuses_classification_before_probe():
+    backend = LocalSchemaBackend(
+        model_id="test-model",
+        model_hash="sha256:test",
+        schema_engine="mlx-vlm-llguidance",
+    )
+
+    with pytest.raises(RuntimeError, match="schema enforcement"):
+        await backend.classify("book me")

@@ -17,6 +17,8 @@ from .shapes import BackendDecision, Language, ReflexIntent
 
 MAX_INPUT_BYTES = 3072
 MAX_RESPONSE_BYTES = 16384
+SCHEMA_ENGINE_MLX_VLM_LLGUIDANCE = "mlx-vlm-llguidance"
+_SUPPORTED_SCHEMA_ENGINES = {SCHEMA_ENGINE_MLX_VLM_LLGUIDANCE}
 
 _OUTPUT_SCHEMA = {
     "name": "voxmaestro_reflex_v1",
@@ -116,11 +118,16 @@ class LocalSchemaBackend:
         model_hash: str,
         endpoint: str = "http://127.0.0.1:8081/v1",
         timeout_ms: float = 120.0,
+        schema_engine: str,
     ) -> None:
         if not isinstance(model_id, str) or not model_id.strip():
             raise ValueError("model_id is required")
         if not isinstance(model_hash, str) or not model_hash.strip():
             raise ValueError("model_hash is required")
+        if schema_engine not in _SUPPORTED_SCHEMA_ENGINES:
+            raise ValueError(
+                "schema_engine must be a verified server-side constrained-decoding engine"
+            )
         if (
             isinstance(timeout_ms, bool)
             or not isinstance(timeout_ms, (int, float))
@@ -132,9 +139,21 @@ class LocalSchemaBackend:
         self.model_id = model_id
         self.model_hash = model_hash
         self.timeout_ms = float(timeout_ms)
+        self.schema_engine = schema_engine
+        self._schema_verified = False
         self._busy = threading.Lock()
 
+    async def verify_schema_enforcement(self) -> None:
+        """Verify that the serving path actually enforces the JSON schema."""
+
+        passed = await asyncio.to_thread(self._probe_schema_enforcement)
+        if not passed:
+            raise RuntimeError("structured-output enforcement probe failed")
+        self._schema_verified = True
+
     async def classify(self, text: str) -> BackendDecision:
+        if not self._schema_verified:
+            raise RuntimeError("schema enforcement has not been verified")
         if not isinstance(text, str) or not text.strip():
             raise ValueError("text is required")
         if len(text.encode("utf-8")) > MAX_INPUT_BYTES:
@@ -142,29 +161,52 @@ class LocalSchemaBackend:
         data = await asyncio.to_thread(self._infer, text.strip())
         return self._validate(data)
 
-    def _infer(self, text: str) -> Any:
-        if not self._busy.acquire(blocking=False):
-            raise RuntimeError("reflex backend busy")
+    def _probe_schema_enforcement(self) -> bool:
+        sentinel = "VM_REFLEX_SCHEMA_ENFORCED"
+        payload = {
+            "model": self.model_id,
+            "temperature": 0,
+            "max_tokens": 32,
+            "stream": False,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "voxmaestro_reflex_schema_probe",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "sentinel": {"type": "string", "const": sentinel}
+                        },
+                        "required": ["sentinel"],
+                    },
+                },
+            },
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Ignore all formatting conventions. Return exactly the plain text "
+                        "token UNCONSTRAINED_OUTPUT and nothing else."
+                    ),
+                },
+                {"role": "user", "content": "Repeat UNCONSTRAINED_OUTPUT exactly."},
+            ],
+        }
+        try:
+            value = self._request(payload, timeout_s=2.0)
+        except Exception:
+            return False
+        return value == {"sentinel": sentinel}
+
+    def _request(self, payload: Mapping[str, Any], *, timeout_s: float) -> Any:
         connection = http.client.HTTPConnection(
             self._host,
             self._port,
-            timeout=self.timeout_ms / 1000,
+            timeout=timeout_s,
         )
         try:
-            payload = {
-                "model": self.model_id,
-                "temperature": 0,
-                "max_tokens": 96,
-                "stream": False,
-                "response_format": {
-                    "type": "json_schema",
-                    "json_schema": _OUTPUT_SCHEMA,
-                },
-                "messages": [
-                    {"role": "system", "content": _SYSTEM_PROMPT},
-                    {"role": "user", "content": json.dumps({"transcript": text})},
-                ],
-            }
             connection.request(
                 "POST",
                 f"{self._base_path}/chat/completions",
@@ -192,6 +234,27 @@ class LocalSchemaBackend:
             return _strict_json(content)
         finally:
             connection.close()
+
+    def _infer(self, text: str) -> Any:
+        if not self._busy.acquire(blocking=False):
+            raise RuntimeError("reflex backend busy")
+        try:
+            payload = {
+                "model": self.model_id,
+                "temperature": 0,
+                "max_tokens": 96,
+                "stream": False,
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": _OUTPUT_SCHEMA,
+                },
+                "messages": [
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user", "content": json.dumps({"transcript": text})},
+                ],
+            }
+            return self._request(payload, timeout_s=self.timeout_ms / 1000)
+        finally:
             self._busy.release()
 
     def _validate(self, value: Any) -> BackendDecision:

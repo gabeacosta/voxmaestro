@@ -28,10 +28,16 @@ There is no hosted fallback in the live path.
 
 ## Backend contract
 
-LocalSchemaBackend talks only to a numeric loopback OpenAI-compatible /v1
-endpoint. The model id and model hash are pinned at construction. It makes one
-request, never retries, never follows redirects, exposes no tool surface, and
-requires JSON-schema constrained output.
+LocalSchemaBackend talks only to a numeric loopback /v1 endpoint backed by an
+explicitly admitted schema-constrained serving engine. For v1 the only admitted
+engine contract is `mlx-vlm-llguidance`; generic `mlx-lm.server` is rejected
+because accepting `response_format` is not evidence that decoding is constrained.
+
+Before classification, the backend runs a conflicting-instruction capability
+probe whose required sentinel exists only in the JSON schema. Classification is
+disabled until that probe passes. The model id and model hash are pinned at
+construction. Inference makes one request, never retries, never follows
+redirects, and exposes no tool surface.
 
 The backend deadline is at most 150 ms. ReflexGate also enforces an outer
 deadline of at most 150 ms.
@@ -86,6 +92,7 @@ Example:
 python -m voxmaestro.reflex.admission \
   --corpus path/to/reflex-real-turns.jsonl \
   --endpoint http://127.0.0.1:8081/v1 \
+  --schema-engine mlx-vlm-llguidance \
   --model-id <local-model-id> \
   --model-path <path-to-local-model-artifact-or-directory> \
   --load-profile representative \
@@ -107,3 +114,13 @@ digests and labels but does not copy transcripts into the evidence output.
 
 `PASS_REFLEX_MODEL_ADMISSION` means the model cleared this evidence gate. It
 does not grant routing or tool authority.
+
+
+### First challenger
+
+The first benchmark challenger is `mlx-community/Qwen3-0.6B-4bit`, not an
+adopted dependency. It is small enough to justify a physical test and can be
+served through `mlx_vlm.server`. Do not add it to the permanent fleet unless it
+passes this admission gate under representative load.
+
+Do not use the existing `mlx-lm.server` path for this reflex benchmark.

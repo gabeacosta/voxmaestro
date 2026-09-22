@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 from typing import Any, Iterable
 
-from .backends import LocalSchemaBackend
+from .backends import LocalSchemaBackend, SCHEMA_ENGINE_MLX_VLM_LLGUIDANCE
 from .gate import ReflexGate
 
 
@@ -250,6 +250,11 @@ def _parser() -> argparse.ArgumentParser:
     identity = parser.add_mutually_exclusive_group(required=True)
     identity.add_argument("--model-path", type=Path)
     identity.add_argument("--model-hash")
+    parser.add_argument(
+        "--schema-engine",
+        choices=(SCHEMA_ENGINE_MLX_VLM_LLGUIDANCE,),
+        required=True,
+    )
     parser.add_argument("--timeout-ms", type=float, default=150.0)
     parser.add_argument("--tool-threshold", type=float, default=0.5)
     parser.add_argument(
@@ -274,7 +279,23 @@ async def _run(args: argparse.Namespace) -> int:
         model_id=args.model_id,
         model_hash=model_hash,
         timeout_ms=min(float(args.timeout_ms), 150.0),
+        schema_engine=args.schema_engine,
     )
+    try:
+        await backend.verify_schema_enforcement()
+    except Exception as error:
+        report = {
+            "contract_version": "reflex-admission.v1",
+            "verdict": "BLOCKED",
+            "authority": "EVIDENCE_ONLY_NOT_ROUTING_AUTHORITY",
+            "checks": {"schema_enforcement_verified": False},
+            "error": type(error).__name__,
+        }
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(report, indent=2) + "\n")
+        print(json.dumps(report, indent=2))
+        return 2
+
     gate = ReflexGate(backend, timeout_ms=min(float(args.timeout_ms), 150.0))
     report = await evaluate_rows(
         rows,
@@ -283,6 +304,8 @@ async def _run(args: argparse.Namespace) -> int:
         load_profile=args.load_profile,
         corpus_sha256=corpus_digest,
     )
+    report["checks"]["schema_enforcement_verified"] = True
+    report["model"]["schema_engine"] = args.schema_engine
     if args.model_path is None:
         report["checks"]["model_identity_computed_from_artifact"] = False
         report["verdict"] = "BLOCKED"
