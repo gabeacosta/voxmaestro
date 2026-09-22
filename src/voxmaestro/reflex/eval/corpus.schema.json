@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VoxMaestro Reflex Eval Row v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "transcript",
+    "expected_intent",
+    "expected_tool_needed",
+    "expected_language",
+    "provenance"
+  ],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "transcript": {"type": "string", "minLength": 1, "maxLength": 3072},
+    "expected_intent": {
+      "type": "string",
+      "enum": [
+        "schedule",
+        "faq",
+        "pricing",
+        "complaint",
+        "disclosure-trigger",
+        "off-script"
+      ]
+    },
+    "expected_tool_needed": {"type": "boolean"},
+    "expected_language": {"type": "string", "enum": ["en", "es"]},
+    "provenance": {"type": "string", "enum": ["real", "synthetic"]},
+    "notes": {"type": "string"}
+  }
+}
