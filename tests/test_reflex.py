@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
 import pytest
 
+from voxmaestro.reflex.backends import LocalSchemaBackend
 from voxmaestro.reflex import (
     BackendDecision,
     GateDecision,
@@ -215,3 +219,111 @@ async def test_reflex_metric_failure_never_breaks_turn():
 
     assert result["state"] == "qualification"
     assert session.context.intent_history == ["schedule_appointment"]
+
+
+
+def test_local_schema_backend_requires_admitted_schema_engine():
+    with pytest.raises(ValueError, match="schema_engine"):
+        LocalSchemaBackend(
+            model_id="test-model",
+            model_hash="sha256:test",
+            schema_engine="mlx-lm-unconstrained",
+        )
+
+
+@pytest.mark.asyncio
+async def test_local_schema_backend_refuses_classification_before_probe():
+    backend = LocalSchemaBackend(
+        model_id="test-model",
+        model_hash="sha256:test",
+        schema_engine="mlx-vlm-llguidance",
+    )
+
+    with pytest.raises(RuntimeError, match="schema enforcement"):
+        await backend.classify("book me")
+
+
+
+class _SchemaServer:
+    def __init__(self, *, enforce: bool) -> None:
+        state = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_POST(self):
+                length = int(self.headers["Content-Length"])
+                payload = json.loads(self.rfile.read(length))
+                schema_name = (
+                    payload.get("response_format", {})
+                    .get("json_schema", {})
+                    .get("name")
+                )
+                if schema_name == "voxmaestro_reflex_schema_probe":
+                    content = (
+                        '{"sentinel":"VM_REFLEX_SCHEMA_ENFORCED"}'
+                        if state.enforce
+                        else "UNCONSTRAINED_OUTPUT"
+                    )
+                else:
+                    content = (
+                        '{"intent":"schedule","tool_needed_probability":0.9,'
+                        '"language":"en"}'
+                    )
+                body = json.dumps(
+                    {"choices": [{"message": {"content": content}}]}
+                ).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+        self.enforce = enforce
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+
+    @property
+    def endpoint(self):
+        return f"http://127.0.0.1:{self.server.server_port}/v1"
+
+    def __enter__(self):
+        self.thread.start()
+        return self
+
+    def __exit__(self, *args):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(2)
+
+
+@pytest.mark.asyncio
+async def test_schema_probe_blocks_server_that_ignores_response_format():
+    with _SchemaServer(enforce=False) as server:
+        backend = LocalSchemaBackend(
+            model_id="test-model",
+            model_hash="sha256:test",
+            endpoint=server.endpoint,
+            schema_engine="mlx-vlm-llguidance",
+        )
+
+        with pytest.raises(RuntimeError, match="probe failed"):
+            await backend.verify_schema_enforcement()
+
+
+@pytest.mark.asyncio
+async def test_schema_probe_unlocks_classification_after_enforced_sentinel():
+    with _SchemaServer(enforce=True) as server:
+        backend = LocalSchemaBackend(
+            model_id="test-model",
+            model_hash="sha256:test",
+            endpoint=server.endpoint,
+            schema_engine="mlx-vlm-llguidance",
+        )
+
+        await backend.verify_schema_enforcement()
+        result = await backend.classify("book me")
+
+        assert result.intent is ReflexIntent.SCHEDULE
+        assert result.tool_needed_probability == 0.9
+        assert result.language is Language.EN
