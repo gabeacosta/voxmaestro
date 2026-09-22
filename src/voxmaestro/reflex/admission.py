@@ -248,6 +248,8 @@ def adjudicate_physical(
     voice_evidence: dict[str, Any],
     *,
     voice_alive_through_benchmark: bool,
+    admission_process_ok: bool = True,
+    voice_process_ok: bool = True,
 ) -> dict[str, Any]:
     """Deterministically combine model admission with a physical voice-load witness."""
 
@@ -260,9 +262,13 @@ def adjudicate_physical(
         and lane.get("evidence_complete") is True
         and voice_evidence.get("acoustic_crosstalk_measured") is True
         and voice_alive_through_benchmark
+        and admission_process_ok
+        and voice_process_ok
     )
     checks = {
         "voice_witness_alive_through_benchmark": voice_alive_through_benchmark,
+        "voice_witness_process_ok": voice_process_ok,
+        "model_admission_process_ok": admission_process_ok,
         "voice_witness_qualification_pass": (
             isinstance(qualification, dict)
             and qualification.get("verdict") == "PASS"

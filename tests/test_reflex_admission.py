@@ -182,3 +182,20 @@ def test_physical_admission_blocks_model_after_valid_voice_witness():
     )
 
     assert report["verdict"] == "BLOCKED"
+
+
+
+@pytest.mark.parametrize(
+    ("admission_ok", "voice_ok"),
+    [(False, True), (True, False), (False, False)],
+)
+def test_physical_admission_rejects_child_process_failure(admission_ok, voice_ok):
+    report = adjudicate_physical(
+        {"verdict": "PASS_REFLEX_MODEL_ADMISSION"},
+        _physical_voice_evidence(),
+        voice_alive_through_benchmark=True,
+        admission_process_ok=admission_ok,
+        voice_process_ok=voice_ok,
+    )
+
+    assert report["verdict"] == "TEST_INVALID"

@@ -279,6 +279,8 @@ def main() -> int:
             admission_report,
             voice_evidence,
             voice_alive_through_benchmark=voice_alive_through_benchmark,
+            admission_process_ok=admission.returncode == 0,
+            voice_process_ok=voice_rc == 0,
         )
         decision.update(
             {
