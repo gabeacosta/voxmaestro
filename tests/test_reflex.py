@@ -163,3 +163,55 @@ async def test_runtime_reflex_failure_does_not_change_existing_path():
     assert result["reflex"]["status"] == "fallback"
     assert result["state"] == "qualification"
     assert session.context.intent_history == ["schedule_appointment"]
+
+
+
+class CancellationSuppressingBackend(FakeBackend):
+    async def classify(self, text: str) -> BackendDecision:
+        self.calls.append(text)
+        try:
+            await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.05)
+        return BackendDecision(
+            intent=ReflexIntent.SCHEDULE,
+            tool_needed_probability=0.99,
+            language=Language.EN,
+            model_id=self.model_id,
+            model_hash=self.model_hash,
+        )
+
+
+@pytest.mark.asyncio
+async def test_gate_timeout_is_strict_even_if_backend_suppresses_cancellation():
+    gate = ReflexGate(CancellationSuppressingBackend(), timeout_ms=5)
+    started = asyncio.get_running_loop().time()
+
+    decision = await gate.classify("book me")
+
+    elapsed = asyncio.get_running_loop().time() - started
+    assert decision.status == "fallback"
+    assert decision.fallback_reason == "timeout"
+    assert elapsed < 0.03
+    await asyncio.sleep(0.06)
+
+
+@pytest.mark.asyncio
+async def test_reflex_metric_failure_never_breaks_turn():
+    async def existing_classifier(text, context):
+        return "schedule_appointment"
+
+    async def broken_metric(name, value, tags):
+        raise RuntimeError("telemetry offline")
+
+    runtime = VoxMaestroRuntime(
+        _config(),
+        intent_classifier=existing_classifier,
+        reflex_gate=ReflexGate(FakeBackend()),
+    )
+    session = runtime.start_call("metric-failure", on_metric=broken_metric)
+
+    result = await session.process_turn("Book me")
+
+    assert result["state"] == "qualification"
+    assert session.context.intent_history == ["schedule_appointment"]

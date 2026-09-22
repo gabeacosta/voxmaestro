@@ -72,3 +72,38 @@ Do not let reflex output change routing until:
 - no tool execution from the reflex
 - no plugin/factory abstraction
 - no free-text reflex output
+
+
+## Model admission runner
+
+After this code is merged, run the local model under the same concurrent ASR/TTS
+load expected in production. The runner refuses to produce an admission PASS
+from an idle benchmark or from an operator-asserted model hash.
+
+Example:
+
+```bash
+python -m voxmaestro.reflex.admission \
+  --corpus path/to/reflex-real-turns.jsonl \
+  --endpoint http://127.0.0.1:8081/v1 \
+  --model-id <local-model-id> \
+  --model-path <path-to-local-model-artifact-or-directory> \
+  --load-profile representative \
+  --out evidence/reflex-admission/reflex-admission.json
+```
+
+A PASS currently requires all of the following:
+
+- at least 30 real labelled turns
+- at least 59 real tool-needed positives
+- zero observed false downgrades on those positives
+- zero reflex backend fallbacks
+- p95 latency <= 150 ms
+- `--load-profile representative`
+- model identity hashed directly from the local artifact path
+
+Synthetic rows are ignored for admission evidence. The report stores per-turn
+digests and labels but does not copy transcripts into the evidence output.
+
+`PASS_REFLEX_MODEL_ADMISSION` means the model cleared this evidence gate. It
+does not grant routing or tool authority.

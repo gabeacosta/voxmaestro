@@ -186,3 +186,22 @@ async def test_tool_failure_handoff_never_claims_delivery():
     assert result["action"] == "handoff"
     assert result["tool_result"].success is False
     assert result["handoff"]["delivery"][0]["status"] == "not_delivered"
+
+
+
+@pytest.mark.asyncio
+async def test_tool_metric_failure_never_breaks_turn():
+    async def execute_tool(tool_name, tool, params, context):
+        return {"available": True}
+
+    async def broken_metric(name, value, tags):
+        raise RuntimeError("metrics unavailable")
+
+    runtime = VoxMaestroRuntime(config(), tool_executor=execute_tool)
+    session = runtime.start_call("metric-tool", on_metric=broken_metric)
+    session.context.current_state = "qualification"
+
+    result = await session.process_turn("Book", intent="schedule_appointment")
+
+    assert result["tool_result"].success is True
+    assert result["state"] == "qualification"

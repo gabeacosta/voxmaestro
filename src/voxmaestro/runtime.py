@@ -355,18 +355,19 @@ class VoxMaestroRuntime:
         if self.reflex_gate:
             reflex_decision = await self.reflex_gate.classify(caller_text)
             result["reflex"] = reflex_decision.as_dict()
-            if on_metric:
-                telemetry = reflex_decision.telemetry()
-                await on_metric(
-                    "reflex_latency_ms",
-                    reflex_decision.latency_ms,
-                    telemetry,
-                )
-                await on_metric(
-                    "reflex_decision",
-                    1.0 if reflex_decision.usable else 0.0,
-                    telemetry,
-                )
+            telemetry = reflex_decision.telemetry()
+            await self._emit_metric(
+                on_metric,
+                "reflex_latency_ms",
+                reflex_decision.latency_ms,
+                telemetry,
+            )
+            await self._emit_metric(
+                on_metric,
+                "reflex_decision",
+                1.0 if reflex_decision.usable else 0.0,
+                telemetry,
+            )
 
         resolved_intent = intent or await self._classify(caller_text, context)
         context.add_turn("caller", caller_text, intent=resolved_intent)
@@ -382,16 +383,16 @@ class VoxMaestroRuntime:
             )
             result["tool_result"] = tool_result
             result["generation_context"] = self.generation_context(context)
-            if on_metric:
-                await on_metric(
-                    "tool_call_latency_ms",
-                    tool_result.latency_ms,
-                    {
-                        "tool": transition.tool_to_fire,
-                        "success": tool_result.success,
-                        "simulated": tool_result.simulated,
-                    },
-                )
+            await self._emit_metric(
+                on_metric,
+                "tool_call_latency_ms",
+                tool_result.latency_ms,
+                {
+                    "tool": transition.tool_to_fire,
+                    "success": tool_result.success,
+                    "simulated": tool_result.simulated,
+                },
+            )
             if not tool_result.success and not tool_result.simulated:
                 failure = self.tools.tools[transition.tool_to_fire].get("on_failure", {})
                 result["response_text"] = failure.get(
@@ -430,6 +431,20 @@ class VoxMaestroRuntime:
 
         result["state"] = context.current_state
         return result
+
+    async def _emit_metric(
+        self,
+        callback: Optional[MetricCallback],
+        name: str,
+        value: float,
+        tags: dict[str, Any],
+    ) -> None:
+        if callback is None:
+            return
+        try:
+            await callback(name, value, tags)
+        except Exception:
+            logger.exception("Metric callback failed for %s", name)
 
     async def _classify(self, text: str, context: ConversationContext) -> str:
         if self.intent_classifier:

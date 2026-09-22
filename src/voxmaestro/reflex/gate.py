@@ -15,6 +15,16 @@ from .backends import ReflexBackend
 from .shapes import GateDecision
 
 
+def _consume_task(task: asyncio.Task) -> None:
+    """Consume a detached task result without hiding caller cancellation."""
+    if task.cancelled():
+        return
+    try:
+        task.exception()
+    except BaseException:
+        pass
+
+
 class ReflexGate:
     """Observe a turn with a local classifier without gaining routing authority."""
 
@@ -32,13 +42,27 @@ class ReflexGate:
     async def classify(self, text: str) -> GateDecision:
         digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
         started = time.monotonic()
+        task = asyncio.create_task(self.backend.classify(text))
         try:
-            proposal = await asyncio.wait_for(
-                self.backend.classify(text),
+            done, _ = await asyncio.wait(
+                {task},
                 timeout=self.timeout_ms / 1000,
+                return_when=asyncio.FIRST_COMPLETED,
             )
-        except asyncio.TimeoutError:
+        except Exception:
+            task.cancel()
+            task.add_done_callback(_consume_task)
+            return self._fallback(started, digest, "backend_error")
+
+        if task not in done:
+            task.cancel()
+            task.add_done_callback(_consume_task)
             return self._fallback(started, digest, "timeout")
+
+        try:
+            proposal = task.result()
+        except asyncio.CancelledError:
+            return self._fallback(started, digest, "backend_error")
         except Exception:
             return self._fallback(started, digest, "backend_error")
 
