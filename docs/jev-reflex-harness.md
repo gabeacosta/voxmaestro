@@ -100,8 +100,10 @@ all recorded as closed batches with error strings.
 - [ ] PENDING: direct `JevHttpTransport` coverage for HTTP 4xx/5xx,
   unreachable transport, timeout, invalid JSON, and non-mapping bodies
   (backend closure is covered with `FakeTransport`)
-- [ ] PENDING: prove a queue-backed dispatch where the live turn does not wait
-  for Jev. `hand_off_shadow` alone is not that proof.
+- [x] IMPLEMENTED/DETERMINISTIC: `VM-JEV-LIVE-001` supplies
+  `hand_off_shadow` with a queue-backed dispatcher and tests that the helper
+  returns before remote worker completion. Live provider evidence is still
+  pending.
 - [ ] PENDING: live wall-clock latency characterization, including DNS and
   connection establishment outside the turn-critical path
 
@@ -110,8 +112,10 @@ GitHub CI is the deterministic code gate; physical/live evidence is separate.
 
 ## 8. Next Slice
 
-Frozen live-acceptance specimen: immutable stimulus, immutable
-`question_version`, provider pair (TypeSafe native + Vercel compat),
-reconciliation schema, sealing criteria. Promotion study comes only after
-that passes and live shadow latency stays clear of the turn budget.
-Rejection with evidence is a successful outcome.
+`VM-JEV-LIVE-001` now implements the frozen specimen, provider pair,
+queue-backed dispatch, reconciliation schema, and content-addressed evidence
+seal. See [jev-live-001.md](jev-live-001.md).
+
+The remaining step is physical live execution on the Mac Mini with both
+credentials present. Promotion study comes only after that evidence exists.
+Rejection or disagreement with evidence is a successful experimental outcome.
