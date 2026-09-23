@@ -26,7 +26,9 @@ from voxmaestro.reflex.jev_backend import (
     QUESTION_SCORE,
     DecisionRequest,
     DecisionTrace,
+    JevProtocolError,
     JevQuestion,
+    _NoRedirect,
     hand_off_shadow,
     jev_backend_from_config,
 )
@@ -217,9 +219,12 @@ def discover_typesafe_models(api_key: str, *, timeout_s: float = 5.0) -> tuple[d
         },
         method="GET",
     )
+    opener = urllib.request.build_opener(_NoRedirect())
     try:
-        with urllib.request.urlopen(request, timeout=timeout_s) as response:
+        with opener.open(request, timeout=timeout_s) as response:
             raw = response.read()
+    except JevProtocolError as exc:
+        raise LiveAcceptanceError(str(exc)) from exc
     except urllib.error.HTTPError as exc:
         raise LiveAcceptanceError(f"model_discovery_http_{exc.code}") from exc
     except urllib.error.URLError as exc:
@@ -288,11 +293,14 @@ def freeze_specimen(
     frozen["model"] = _validate_pinned_model(model)
     frozen["source_commit"] = source_commit
     frozen["frozen_at_utc"] = frozen_at_utc
+    hash_path = output_path.with_suffix(output_path.suffix + ".sha256")
+    if output_path.exists() or hash_path.exists():
+        raise FileExistsError("frozen_specimen_already_exists")
     payload = json.dumps(frozen, sort_keys=True, indent=2, ensure_ascii=False).encode("utf-8") + b"\n"
     _atomic_write(output_path, payload)
     digest = sha256_bytes(canonical_json_bytes(frozen))
     _atomic_write(
-        output_path.with_suffix(output_path.suffix + ".sha256"),
+        hash_path,
         (digest + "  " + output_path.name + "\n").encode("utf-8"),
     )
     return load_frozen_specimen(output_path)
