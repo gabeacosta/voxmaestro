@@ -1,6 +1,6 @@
 # Jev as a Challenger Backend for the VoxMaestro Reflex Layer
 
-**Status:** Sketch v3 — review-hardened; ready for deterministic tests
+**Status:** Sketch v3 — deterministic contract implemented; live transport acceptance pending
 **Targets:** `src/voxmaestro/reflex/jev_backend.py` (new)
 **Base:** main @ 85f4978 (post-#37)
 
@@ -20,9 +20,17 @@ fails, every question returns UNKNOWN.
 
 ## 2. Latency Boundary
 
-The user-facing turn never awaits Jev. ASR final → local reflex continues
-the turn synchronously; the same request is handed to an async shadow queue.
-Socket timeout is not a wall-clock guarantee; the queue boundary is.
+The user-facing turn must never await Jev. This adapter is not wired into the
+live turn path.
+
+`hand_off_shadow` delegates synchronously to the supplied dispatch callable.
+Therefore it is non-blocking only when that callable is itself a non-blocking
+enqueue operation. A production queue handoff is still pending and must be
+proven before live shadow wiring.
+
+`timeout_s` is passed to the urllib opener, but it is not a complete wall-clock
+deadline and does not independently bound DNS resolution. Live acceptance must
+measure end-to-end shadow latency outside the user-facing turn path.
 
 ## 3. One Codec, Two Endpoints
 
@@ -80,15 +88,25 @@ all recorded as closed batches with error strings.
 - [x] FAIL: complete valid batch + write failure → UNKNOWN
 - [x] PASS: malformed usage + valid answers → answers survive, usage=None
 - [x] FAIL: malformed/missing answer → entire batch UNKNOWN
-- [x] FAIL: redirect → entire batch UNKNOWN
-- [x] FAIL: arbitrary data cannot enter trace
-- [x] PASS: TypeSafe-native and Vercel-compatible run the same codec fixtures
-- [x] FAIL: timeout / 4xx / 5xx / invalid JSON → UNKNOWN
+- [x] PASS: provider factory maps TypeSafe-native and Vercel-compatible to
+  the intended endpoints while using the same SystemOne codec
+- [x] FAIL: unknown provider is rejected before network access
 - [x] FAIL: oversized state / duplicate keys → rejected pre-network
-- [x] PASS: local turn completes without awaiting Jev (by construction:
-  no sync call exists on the turn path; `hand_off_shadow` only)
+- [ ] PENDING: redirect rejection through the full HTTP transport path
+  (the redirect handler itself has deterministic unit coverage)
+- [ ] PENDING: explicit test that caller-supplied arbitrary metadata cannot
+  enter trace/telemetry; the current `DecisionTrace` shape is fixed but that
+  boundary is not yet independently exercised
+- [ ] PENDING: direct `JevHttpTransport` coverage for HTTP 4xx/5xx,
+  unreachable transport, timeout, invalid JSON, and non-mapping bodies
+  (backend closure is covered with `FakeTransport`)
+- [ ] PENDING: prove a queue-backed dispatch where the live turn does not wait
+  for Jev. `hand_off_shadow` alone is not that proof.
+- [ ] PENDING: live wall-clock latency characterization, including DNS and
+  connection establishment outside the turn-critical path
 
-Verified: 26 passed (Python 3.12, pytest 8.3).
+Do not promote the live-acceptance slice from these checklist statements alone.
+GitHub CI is the deterministic code gate; physical/live evidence is separate.
 
 ## 8. Next Slice
 
