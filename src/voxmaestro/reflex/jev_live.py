@@ -34,10 +34,9 @@ from voxmaestro.reflex.jev_backend import (
 )
 
 EXPERIMENT_ID = "VM-JEV-LIVE-001"
-SCHEMA_VERSION = "vm-jev-live-001.v1"
+SCHEMA_VERSION = "vm-jev-live-001.v2"
 PROVIDERS = ("typesafe", "vercel-typesafe")
 MODEL_DISCOVERY_ENDPOINT = "https://api.typesafe.ai/v1/models"
-FORBIDDEN_MODEL_ALIASES = frozenset({"jev-latest", "jev-preview"})
 PLACEHOLDER_MODEL_VALUES = frozenset({"", "__PINNED_MODEL__", "__REPLACE_WITH_PINNED_MODEL__"})
 
 
@@ -52,6 +51,8 @@ class FrozenSpecimen:
     experiment_id: str
     schema_version: str
     model: str
+    model_catalog: tuple[dict[str, str], ...]
+    model_catalog_sha256: str
     question_version: str
     state: str
     questions: tuple[JevQuestion, ...]
@@ -243,34 +244,49 @@ def discover_typesafe_models(api_key: str, *, timeout_s: float = 5.0) -> tuple[d
         if not isinstance(item, Mapping):
             continue
         name = item.get("name")
+        description = item.get("description")
         release_date = item.get("release_date")
-        if isinstance(name, str) and isinstance(release_date, str):
-            normalized.append({"name": name, "release_date": release_date})
+        if (
+            isinstance(name, str)
+            and isinstance(description, str)
+            and isinstance(release_date, str)
+        ):
+            normalized.append(
+                {
+                    "name": name,
+                    "description": description,
+                    "release_date": release_date,
+                }
+            )
     if not normalized:
         raise LiveAcceptanceError("model_discovery_empty")
-    return tuple(normalized)
+    return tuple(sorted(normalized, key=lambda item: item["name"]))
 
 
-def select_pinned_model(models: Sequence[Mapping[str, str]]) -> str:
-    """Select the newest versioned Jev model while refusing moving aliases."""
+def select_catalog_model(
+    models: Sequence[Mapping[str, str]],
+    *,
+    requested: Optional[str] = None,
+) -> str:
+    """Select an account-visible Jev name or alias and bind it to catalog metadata."""
 
-    candidates = [
-        item
-        for item in models
-        if item.get("name") not in FORBIDDEN_MODEL_ALIASES
-        and str(item.get("name", "")).startswith("jev-")
-    ]
+    names = {str(item.get("name", "")) for item in models}
+    if requested is not None:
+        model = _validate_model_name(requested)
+        if model not in names:
+            raise LiveAcceptanceError(f"requested_model_not_in_catalog:{model}")
+        return model
+    if "jev-latest" in names:
+        return "jev-latest"
+    candidates = sorted(name for name in names if name.startswith("jev-"))
     if not candidates:
-        raise LiveAcceptanceError("no_versioned_jev_model_available")
-    selected = max(candidates, key=lambda item: (str(item.get("release_date", "")), str(item["name"])))
-    return str(selected["name"])
+        raise LiveAcceptanceError("no_jev_model_available")
+    return candidates[-1]
 
 
-def _validate_pinned_model(model: Any) -> str:
+def _validate_model_name(model: Any) -> str:
     if not isinstance(model, str) or model in PLACEHOLDER_MODEL_VALUES:
-        raise LiveAcceptanceError("pinned_model_required")
-    if model in FORBIDDEN_MODEL_ALIASES or model.endswith("-latest"):
-        raise LiveAcceptanceError("moving_model_alias_forbidden")
+        raise LiveAcceptanceError("model_name_required")
     if not model.startswith("jev-"):
         raise LiveAcceptanceError("unexpected_jev_model_name")
     return model
@@ -281,6 +297,7 @@ def freeze_specimen(
     output_path: Path,
     *,
     model: str,
+    model_catalog: Sequence[Mapping[str, str]],
     source_commit: str,
     frozen_at_utc: str,
 ) -> FrozenSpecimen:
@@ -290,7 +307,13 @@ def freeze_specimen(
     if not isinstance(template, Mapping):
         raise LiveAcceptanceError("specimen_template_not_mapping")
     frozen = dict(template)
-    frozen["model"] = _validate_pinned_model(model)
+    normalized_catalog = tuple(dict(item) for item in model_catalog)
+    model = _validate_model_name(model)
+    if model not in {item.get("name") for item in normalized_catalog}:
+        raise LiveAcceptanceError(f"model_not_in_frozen_catalog:{model}")
+    frozen["model"] = model
+    frozen["model_catalog"] = list(normalized_catalog)
+    frozen["model_catalog_sha256"] = sha256_json(list(normalized_catalog))
     frozen["source_commit"] = source_commit
     frozen["frozen_at_utc"] = frozen_at_utc
     hash_path = output_path.with_suffix(output_path.suffix + ".sha256")
@@ -316,7 +339,19 @@ def load_frozen_specimen(path: Path) -> FrozenSpecimen:
         raise LiveAcceptanceError("wrong_experiment_id")
     if raw.get("schema_version") != SCHEMA_VERSION:
         raise LiveAcceptanceError("wrong_schema_version")
-    model = _validate_pinned_model(raw.get("model"))
+    model = _validate_model_name(raw.get("model"))
+    raw_catalog = raw.get("model_catalog")
+    model_catalog_sha256 = raw.get("model_catalog_sha256")
+    if not isinstance(raw_catalog, list) or not raw_catalog:
+        raise LiveAcceptanceError("model_catalog_required")
+    model_catalog = tuple(dict(item) for item in raw_catalog if isinstance(item, Mapping))
+    if len(model_catalog) != len(raw_catalog):
+        raise LiveAcceptanceError("model_catalog_invalid")
+    actual_catalog_sha256 = sha256_json(list(model_catalog))
+    if model_catalog_sha256 != actual_catalog_sha256:
+        raise LiveAcceptanceError("model_catalog_hash_mismatch")
+    if model not in {item.get("name") for item in model_catalog}:
+        raise LiveAcceptanceError("model_missing_from_frozen_catalog")
     question_version = raw.get("question_version")
     state = raw.get("state")
     providers = raw.get("providers")
@@ -342,6 +377,8 @@ def load_frozen_specimen(path: Path) -> FrozenSpecimen:
         experiment_id=EXPERIMENT_ID,
         schema_version=SCHEMA_VERSION,
         model=model,
+        model_catalog=model_catalog,
+        model_catalog_sha256=actual_catalog_sha256,
         question_version=question_version,
         state=state,
         questions=questions,
@@ -467,6 +504,7 @@ def _run_provider(
             "model": specimen.model,
             "audit_log": str(audit_path),
             "timeout_s": 0.8,
+            "allow_model_alias": specimen.model.endswith("-latest"),
         }
     )
     results: queue.Queue[dict[str, Any]] = queue.Queue()
@@ -534,6 +572,8 @@ def _run_provider(
 def reconcile_provider_reports(
     specimen: FrozenSpecimen,
     reports: Mapping[str, Mapping[str, Any]],
+    *,
+    catalog_stable: bool = True,
 ) -> dict[str, Any]:
     """Compare provider results without granting either provider authority."""
 
@@ -560,6 +600,24 @@ def reconcile_provider_reports(
         for index in range(specimen.runs_per_provider)
     ]
     request_identity = all(pair["same"] and pair["typesafe"] for pair in hash_pairs)
+
+    all_observations = left_obs + right_obs
+    requested_model_identity = all(
+        record.get("requested_model") == specimen.model
+        for record in all_observations
+    )
+    resolved_models = sorted(
+        {
+            str(record.get("model"))
+            for record in all_observations
+            if isinstance(record.get("model"), str) and record.get("model")
+        }
+    )
+    resolved_model_identity = (
+        requested_model_identity
+        and len(resolved_models) == 1
+        and len(all_observations) == 2 * specimen.runs_per_provider
+    )
 
     question_map = {question.key: question for question in specimen.questions}
     comparisons: list[dict[str, Any]] = []
@@ -596,6 +654,10 @@ def reconcile_provider_reports(
         status = "FAIL_PROVIDER"
     elif not request_identity:
         status = "FAIL_REQUEST_DRIFT"
+    elif not resolved_model_identity:
+        status = "FAIL_MODEL_DRIFT"
+    elif not catalog_stable:
+        status = "FAIL_MODEL_CATALOG_DRIFT"
     elif not semantic_agreement:
         status = "REVIEW_DISAGREEMENT"
     else:
@@ -604,7 +666,11 @@ def reconcile_provider_reports(
     return {
         "experiment_id": specimen.experiment_id,
         "specimen_sha256": specimen.sha256,
-        "model": specimen.model,
+        "requested_model": specimen.model,
+        "model_catalog_sha256": specimen.model_catalog_sha256,
+        "resolved_models": resolved_models,
+        "resolved_model_identity": resolved_model_identity,
+        "catalog_stable": catalog_stable,
         "status": status,
         "provider_valid": provider_valid,
         "request_identity": request_identity,
@@ -667,6 +733,13 @@ def run_live_acceptance(
         raise LiveAcceptanceError("AI_GATEWAY_API_KEY_required")
     if out_dir.exists():
         raise LiveAcceptanceError("evidence_directory_already_exists")
+    current_catalog = discover_typesafe_models(typesafe_api_key)
+    current_catalog_sha256 = sha256_json(list(current_catalog))
+    if current_catalog_sha256 != specimen.model_catalog_sha256:
+        raise LiveAcceptanceError(
+            "model_catalog_drift_before_inference:"
+            f"frozen={specimen.model_catalog_sha256}:current={current_catalog_sha256}"
+        )
     out_dir.mkdir(parents=True, mode=0o700)
     if repo_dir is not None:
         actual_commit = current_source_commit(repo_dir)
@@ -677,6 +750,7 @@ def run_live_acceptance(
 
     frozen_copy = json.loads(specimen_path.read_text(encoding="utf-8"))
     _write_json_once(out_dir / "frozen-specimen.json", frozen_copy)
+    _write_json_once(out_dir / "model-catalog-pre.json", list(current_catalog))
 
     reports = {
         "typesafe": _run_provider(specimen, "typesafe", typesafe_api_key, out_dir),
@@ -696,7 +770,14 @@ def run_live_acceptance(
         for provider, report in reports.items()
     }
     _write_json_once(out_dir / "provider-results.json", safe_reports)
-    reconciliation = reconcile_provider_reports(specimen, reports)
+    post_catalog = discover_typesafe_models(typesafe_api_key)
+    _write_json_once(out_dir / "model-catalog-post.json", list(post_catalog))
+    post_catalog_sha256 = sha256_json(list(post_catalog))
+    reconciliation = reconcile_provider_reports(
+        specimen,
+        reports,
+        catalog_stable=post_catalog_sha256 == specimen.model_catalog_sha256,
+    )
     _write_json_once(out_dir / "reconciliation.json", reconciliation)
     seal = seal_evidence(out_dir, reconciliation["status"])
     return {

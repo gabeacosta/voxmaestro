@@ -15,10 +15,18 @@ authority.
 
 ## Why the specimen freezes before inference
 
-TypeSafe exposes moving aliases such as `jev-latest`. The acceptance harness
-refuses moving aliases. Before the first SystemOne POST, the operator freezes:
+TypeSafe's current OpenAPI defines `GET /v1/models` as returning model names
+**or aliases**, with `jev-latest` as the documented example. It also states
+that the `model` returned by `POST /v1/systemone` may differ from the alias
+supplied in the request.
 
-- exact versioned model;
+The provider therefore does not expose a stronger pre-inference concrete model
+pin for every account. VM-JEV-LIVE-001 binds the strongest identity the API
+does expose before inference:
+
+- selected account-visible model name/alias;
+- complete normalized `GET /v1/models` metadata snapshot;
+- SHA-256 of that catalog snapshot;
 - exact synthetic state;
 - exact question version;
 - exact question definitions and criteria;
@@ -26,9 +34,20 @@ refuses moving aliases. Before the first SystemOne POST, the operator freezes:
 - repetitions per provider;
 - exact VoxMaestro source commit.
 
-The optional discovery step performs only `GET /v1/models`; it does not invoke
-Jev. The resulting frozen specimen is create-only and receives a canonical
-SHA-256.
+The discovery step performs only `GET /v1/models`; it does not invoke Jev.
+The frozen specimen is create-only and receives a canonical SHA-256.
+
+Immediately before inference the runner re-fetches the TypeSafe model catalog
+and blocks if its hash differs from the frozen catalog. After both provider
+runs it fetches the catalog again. The evidence passes model identity only if:
+
+1. the catalog remains unchanged;
+2. every observation records the frozen requested name/alias; and
+3. every TypeSafe-native and Vercel-compatible response reports the same
+   resolved response-model identity.
+
+This is catalog-bound alias resolution, not a claim that an alias is an
+immutable model version.
 
 ## Credential boundary
 
@@ -64,12 +83,14 @@ user-facing turn latency.
 
 Both providers receive the same:
 
-- pinned model;
+- frozen model name/alias;
 - state bytes;
 - encoded questions;
 - question version.
 
-The existing request digest therefore must match across provider pairs.
+The existing request digest therefore must match across provider pairs. The
+audit record separately preserves `requested_model` and the response's
+reported `model`.
 
 Raw values are always preserved. Semantic comparison uses only the bounded
 question contract:
@@ -86,6 +107,10 @@ Possible terminal statuses:
   disagree semantically. Human review required; exit code 2.
 - `FAIL_REQUEST_DRIFT` — the providers did not receive identical request
   semantics.
+- `FAIL_MODEL_DRIFT` — resolved response-model identity differs across
+  provider surfaces or repetitions.
+- `FAIL_MODEL_CATALOG_DRIFT` — TypeSafe's account-visible catalog changed
+  during the frozen experiment.
 - `FAIL_PROVIDER` — one or more provider observations closed.
 
 No status grants authority automatically.
@@ -97,7 +122,9 @@ Each run directory is create-only and contains:
 - `frozen-specimen.json`
 - `typesafe.jsonl`
 - `vercel-typesafe.jsonl`
+- `model-catalog-pre.json`
 - `provider-results.json`
+- `model-catalog-post.json`
 - `reconciliation.json`
 - `seal.json`
 
@@ -122,23 +149,16 @@ uv run python examples/run_jev_live_001.py freeze \
   --out "$SPEC_ROOT/frozen-specimen.json"
 ```
 
-The command prints the selected versioned model, source commit, specimen hash,
-and:
+The command prints the selected account-visible model name/alias, frozen model
+catalog hash, source commit, specimen hash, and:
 
 ```text
 systemone_post_executed=false
 ```
 
-If the account cannot use metadata discovery, pass an exact versioned model
-explicitly:
-
-```bash
-uv run python examples/run_jev_live_001.py freeze \
-  --model jev-X.Y.Z \
-  --out "$SPEC_ROOT/frozen-specimen.json"
-```
-
-Never use `jev-latest` or `jev-preview`.
+An explicit `--model` may be supplied only when that exact name appears in
+the authenticated `GET /v1/models` catalog. Metadata discovery is always
+required because the catalog itself is part of the frozen evidence.
 
 Then provide the Vercel key and run the frozen pair into a new directory:
 
@@ -157,8 +177,9 @@ overwritten.
 ## Promotion boundary
 
 A `PASS` proves only that this frozen provider-pair experiment completed
-without request drift and without semantic disagreement under the measured
-conditions.
+without request drift, without catalog drift, with one consistent
+provider-reported response-model identity, and without semantic disagreement
+under the measured conditions.
 
 It does not prove:
 

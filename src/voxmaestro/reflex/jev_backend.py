@@ -84,6 +84,7 @@ class ShadowObservation:
     ok: bool
     total_latency_ms: float
     error: Optional[str]
+    requested_model: Optional[str] = None
 
 
 ShadowObserver = Callable[[ShadowObservation], None]
@@ -95,6 +96,7 @@ def make_jsonl_observer(path: str) -> ShadowObserver:
             "request_hash": observation.request_hash,
             "trace": observation.trace.as_record(),
             "model": observation.model,
+            "requested_model": observation.requested_model,
             "usage": (
                 None
                 if observation.usage is None
@@ -206,8 +208,16 @@ def _nonnegative_int_or_none(value: Any) -> Optional[int]:
 
 
 class JevReflexBackend:
-    def __init__(self, transport, *, model: str, max_state_chars: int = 8000, observer: ShadowObserver) -> None:
-        if model.endswith("-latest"):
+    def __init__(
+        self,
+        transport,
+        *,
+        model: str,
+        max_state_chars: int = 8000,
+        observer: ShadowObserver,
+        allow_model_alias: bool = False,
+    ) -> None:
+        if model.endswith("-latest") and not allow_model_alias:
             raise ValueError("resolved_model_pin_required")
         if observer is None:
             raise ValueError("shadow_observer_required")
@@ -215,6 +225,7 @@ class JevReflexBackend:
         self._model = model
         self._max_state_chars = max_state_chars
         self._observer = observer
+        self._allow_model_alias = allow_model_alias
 
     def decide(self, request: DecisionRequest) -> tuple:
         start = time.monotonic()
@@ -222,6 +233,7 @@ class JevReflexBackend:
         verdicts: tuple = ()
         digest: Optional[str] = None
         usage: Optional[ResponseUsage] = None
+        returned_model: Optional[str] = None
         try:
             if len(request.state) > self._max_state_chars:
                 raise JevProtocolError("state_too_large")
@@ -236,8 +248,8 @@ class JevReflexBackend:
             t0 = time.monotonic()
             body = self._transport.request_systemone(payload)
             batch_latency_ms = (time.monotonic() - t0) * 1000.0
+            returned_model, usage = self._decode_response_metadata(body)
             verdicts = self._decode_batch(request.questions, body, batch_latency_ms)
-            usage = self._decode_response_metadata(body)
         except Exception as exc:
             error = f"{type(exc).__name__}: {exc}"
             verdicts = tuple(
@@ -248,12 +260,13 @@ class JevReflexBackend:
         observation = ShadowObservation(
             request_hash=digest,
             trace=request.trace,
-            model=self._model,
+            model=returned_model or self._model,
             usage=usage,
             verdicts=verdicts,
             ok=error is None,
             total_latency_ms=elapsed_ms,
             error=error,
+            requested_model=self._model,
         )
         if not self._persist(observation):
             return tuple(self._closed_verdict(q, elapsed_ms) for q in request.questions)
@@ -288,22 +301,28 @@ class JevReflexBackend:
             raise JevProtocolError("empty_questions")
         return encoded
 
-    def _decode_response_metadata(self, body: Mapping[str, Any]) -> Optional[ResponseUsage]:
+    def _decode_response_metadata(
+        self,
+        body: Mapping[str, Any],
+    ) -> tuple[str, Optional[ResponseUsage]]:
         returned_model = body.get("model")
         if not isinstance(returned_model, str) or not returned_model:
             raise JevProtocolError("missing_or_invalid_model")
-        if returned_model != self._model:
-            raise JevProtocolError(f"model_drift:requested={self._model}:returned={returned_model}")
+        if not self._allow_model_alias and returned_model != self._model:
+            raise JevProtocolError(
+                f"model_drift:requested={self._model}:returned={returned_model}"
+            )
         raw_usage = body.get("usage")
         if not isinstance(raw_usage, Mapping):
-            return None
+            return returned_model, None
         try:
-            return ResponseUsage(
+            usage = ResponseUsage(
                 input_tokens=_nonnegative_int_or_none(raw_usage.get("input_tokens")),
                 output_tokens=_nonnegative_int_or_none(raw_usage.get("output_tokens")),
             )
         except JevProtocolError:
-            return None
+            usage = None
+        return returned_model, usage
 
     def _decode_batch(self, questions, body: Mapping[str, Any], batch_latency_ms: float) -> tuple:
         answers = body.get("answers")
@@ -384,4 +403,5 @@ def jev_backend_from_config(config: Mapping[str, Any]) -> JevReflexBackend:
         model=str(config["model"]),
         max_state_chars=int(config.get("max_state_chars", 8000)),
         observer=make_jsonl_observer(str(config["audit_log"])),
+        allow_model_alias=bool(config.get("allow_model_alias", False)),
     )

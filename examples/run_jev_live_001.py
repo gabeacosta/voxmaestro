@@ -15,7 +15,7 @@ from voxmaestro.reflex.jev_live import (
     discover_typesafe_models,
     freeze_specimen,
     run_live_acceptance,
-    select_pinned_model,
+    select_catalog_model,
 )
 
 
@@ -33,7 +33,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     freeze = sub.add_parser(
         "freeze",
-        help="Resolve and freeze the exact model + specimen before any SystemOne POST.",
+        help="Freeze the TypeSafe model catalog + selected Jev name before any SystemOne POST.",
     )
     freeze.add_argument(
         "--template",
@@ -43,7 +43,7 @@ def _build_parser() -> argparse.ArgumentParser:
     freeze.add_argument("--out", type=Path, required=True)
     freeze.add_argument(
         "--model",
-        help="Explicit pinned TypeSafe model. If omitted, GET /v1/models selects the newest versioned Jev model.",
+        help="Optional account-visible Jev name/alias. If omitted, prefer jev-latest from GET /v1/models.",
     )
     freeze.add_argument("--repo", type=Path, default=_default_repo())
 
@@ -60,25 +60,23 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _freeze(args: argparse.Namespace) -> int:
     source_commit = current_source_commit(args.repo)
-    model = args.model
-    if model is None:
-        api_key = os.environ.get("TYPESAFE_API_KEY", "")
-        if not api_key:
-            raise LiveAcceptanceError(
-                "TYPESAFE_API_KEY_required_for_discovery_or_pass_--model"
-            )
-        models = discover_typesafe_models(api_key)
-        model = select_pinned_model(models)
-        print("model_discovery=" + json.dumps(models, sort_keys=True))
+    api_key = os.environ.get("TYPESAFE_API_KEY", "")
+    if not api_key:
+        raise LiveAcceptanceError("TYPESAFE_API_KEY_required_for_catalog_freeze")
+    models = discover_typesafe_models(api_key)
+    model = select_catalog_model(models, requested=args.model)
+    print("model_discovery=" + json.dumps(models, sort_keys=True))
     specimen = freeze_specimen(
         args.template,
         args.out,
         model=model,
+        model_catalog=models,
         source_commit=source_commit,
         frozen_at_utc=_utc_now(),
     )
     print(f"FROZEN_{specimen.experiment_id}")
     print(f"model={specimen.model}")
+    print(f"model_catalog_sha256={specimen.model_catalog_sha256}")
     print(f"source_commit={specimen.source_commit}")
     print(f"specimen_sha256={specimen.sha256}")
     print(f"specimen={args.out}")

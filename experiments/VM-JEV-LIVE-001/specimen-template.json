@@ -1,6 +1,6 @@
 {
   "experiment_id": "VM-JEV-LIVE-001",
-  "schema_version": "vm-jev-live-001.v1",
+  "schema_version": "vm-jev-live-001.v2",
   "model": "__PINNED_MODEL__",
   "question_version": "vm-jev-live-001.q1",
   "state": "A caller says: Move my Thursday afternoon appointment to Friday afternoon and send confirmation. No specific slot has been selected yet.",

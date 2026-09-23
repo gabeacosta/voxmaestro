@@ -48,12 +48,21 @@ The second-adapter architecture from v2 is deleted, not extended.
 
 ## 4. Wire + Response Contract
 
-Request: `model` (pinned, no `-latest` aliases), `state`, `questions` object
-keyed by question ID (`type`/`instructions`/`criteria`).
+Request: `model` (an account-visible model name or alias returned by
+`GET /v1/models`), `state`, and a `questions` object keyed by question ID
+(`type`/`instructions`/`criteria`).
 
 Response: top-level `model`, `answers`, `usage` (`input_tokens`,
-`output_tokens`, integers only). The returned `model` must equal the pinned
-request model — mismatch is provider drift and closes the entire batch.
+`output_tokens`, integers only). TypeSafe documents that the response model
+may differ from an alias supplied in the request.
+
+The normal adapter remains strict: without explicit alias opt-in, returned
+model must equal requested model or the batch closes. VM-JEV-LIVE-001 opts into
+alias resolution only for its frozen experiment, records both
+`requested_model` and provider-reported response `model`, and requires one
+identical resolved model identity across both provider surfaces and all
+repetitions.
+
 Decode by primitive: `choice` (must be declared option), `score` (fractional
 rubric position, preserved raw), `noul` (0..1 probability = the uncertainty
 signal; no separate confidence).
@@ -82,8 +91,13 @@ all recorded as closed batches with error strings.
 
 ## 7. Acceptance Gate (deterministic tests first)
 
-- [x] PASS: exact pinned model returned
-- [x] FAIL: returned model differs from requested → entire batch UNKNOWN
+- [x] PASS: non-alias mode records the exact requested model
+- [x] FAIL: non-alias returned model differs from requested → entire batch UNKNOWN
+- [x] PASS: explicit alias mode records requested alias + resolved response model
+- [x] FAIL (live reconciliation): resolved response model differs across
+  providers/runs → `FAIL_MODEL_DRIFT`
+- [x] FAIL (live reconciliation): frozen TypeSafe model catalog changes before
+  or during the run → block / `FAIL_MODEL_CATALOG_DRIFT`
 - [x] PASS: complete valid batch + observation persisted
 - [x] FAIL: complete valid batch + write failure → UNKNOWN
 - [x] PASS: malformed usage + valid answers → answers survive, usage=None

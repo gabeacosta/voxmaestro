@@ -3,7 +3,7 @@
     python -m pytest tests/test_reflex_jev.py -q
 
 MUST be fully green before any real API key enters the acceptance path.
-Verified green: 26 passed (Python 3.12, pytest 8.3) against v3.
+Verified green before live-identity hardening; CI is the current gate.
 """
 from __future__ import annotations
 
@@ -172,6 +172,45 @@ def test_transport_failure_closes_batch_and_never_raises(trace, choice_question,
     verdicts = backend.decide(request_for(trace, choice_question))
     assert_closed(verdicts)
     assert observer.events[0].ok is False
+
+
+def test_alias_mode_records_requested_and_resolved_model(trace, choice_question):
+    observer = CaptureObserver()
+    transport = FakeTransport(
+        valid_body(
+            model="jev-2026-09-15",
+            answers={
+                "intent": {
+                    "type": "choice",
+                    "choice": "schedule",
+                    "confidence": 0.90,
+                }
+            },
+        )
+    )
+    backend = JevReflexBackend(
+        transport,
+        model="jev-latest",
+        observer=observer,
+        allow_model_alias=True,
+    )
+
+    verdicts = backend.decide(request_for(trace, choice_question))
+
+    assert verdicts[0].ok is True
+    event = observer.events[0]
+    assert event.requested_model == "jev-latest"
+    assert event.model == "jev-2026-09-15"
+    assert event.ok is True
+
+
+def test_alias_is_rejected_without_explicit_opt_in(trace, choice_question):
+    with pytest.raises(ValueError, match="resolved_model_pin_required"):
+        JevReflexBackend(
+            FakeTransport(),
+            model="jev-latest",
+            observer=CaptureObserver(),
+        )
 
 
 def test_returned_model_must_equal_pinned_model(trace, choice_question):
