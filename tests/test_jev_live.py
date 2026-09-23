@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
+import urllib.request
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,7 @@ from voxmaestro.reflex.jev_backend import (
     QUESTION_NOUL,
     DecisionRequest,
     DecisionTrace,
+    JevProtocolError,
     JevQuestion,
     hand_off_shadow,
 )
@@ -20,6 +22,7 @@ from voxmaestro.reflex.jev_live import (
     FrozenSpecimen,
     LiveAcceptanceError,
     QueueShadowDispatcher,
+    discover_typesafe_models,
     freeze_specimen,
     reconcile_provider_reports,
     seal_evidence,
@@ -144,6 +147,61 @@ def test_freeze_refuses_moving_alias(tmp_path: Path):
             source_commit="a" * 40,
             frozen_at_utc="2026-09-23T18:00:00Z",
         )
+
+
+def test_model_discovery_rejects_redirect(monkeypatch):
+    class RedirectingOpener:
+        def open(self, _request, timeout):
+            assert timeout == 5.0
+            raise JevProtocolError("unexpected_redirect:302")
+
+    monkeypatch.setattr(
+        urllib.request,
+        "build_opener",
+        lambda *_handlers: RedirectingOpener(),
+    )
+
+    with pytest.raises(LiveAcceptanceError, match="unexpected_redirect:302"):
+        discover_typesafe_models("secret-test-key")
+
+
+def test_stale_hash_blocks_freeze_before_specimen_write(tmp_path: Path):
+    template = tmp_path / "template.json"
+    template.write_text(
+        json.dumps(
+            {
+                "experiment_id": EXPERIMENT_ID,
+                "schema_version": SCHEMA_VERSION,
+                "model": "__PINNED_MODEL__",
+                "question_version": "q1",
+                "state": "synthetic state",
+                "questions": [
+                    {
+                        "kind": "noul",
+                        "key": "needs_tool",
+                        "prompt": "Needs tool?",
+                        "threshold": 0.5,
+                    }
+                ],
+                "providers": ["typesafe", "vercel-typesafe"],
+                "runs_per_provider": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "frozen.json"
+    output.with_suffix(".json.sha256").write_text("stale\n", encoding="utf-8")
+
+    with pytest.raises(FileExistsError, match="frozen_specimen_already_exists"):
+        freeze_specimen(
+            template,
+            output,
+            model="jev-1.13.0",
+            source_commit="a" * 40,
+            frozen_at_utc="2026-09-23T18:00:00Z",
+        )
+
+    assert not output.exists()
 
 
 def test_freeze_is_create_only(tmp_path: Path):
