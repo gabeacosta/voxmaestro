@@ -26,7 +26,17 @@ from voxmaestro.reflex.jev_live import (
     freeze_specimen,
     reconcile_provider_reports,
     seal_evidence,
-    select_pinned_model,
+    select_catalog_model,
+    sha256_json,
+)
+
+
+MODEL_CATALOG = (
+    {
+        "name": "jev-latest",
+        "description": "General-purpose system one model.",
+        "release_date": "2026-09-15",
+    },
 )
 
 
@@ -34,7 +44,9 @@ def _specimen() -> FrozenSpecimen:
     return FrozenSpecimen(
         experiment_id=EXPERIMENT_ID,
         schema_version=SCHEMA_VERSION,
-        model="jev-1.13.0",
+        model="jev-latest",
+        model_catalog=MODEL_CATALOG,
+        model_catalog_sha256=sha256_json(list(MODEL_CATALOG)),
         question_version="q1",
         state="Move the appointment and send confirmation.",
         questions=(
@@ -59,7 +71,14 @@ def _specimen() -> FrozenSpecimen:
     )
 
 
-def _report(request_hash: str, intent: str, noul: float) -> dict:
+def _report(
+    request_hash: str,
+    intent: str,
+    noul: float,
+    *,
+    resolved_model: str = "jev-2026-09-15",
+    requested_model: str = "jev-latest",
+) -> dict:
     return {
         "enqueue_latency": {
             "min_ms": 0.1,
@@ -97,6 +116,8 @@ def _report(request_hash: str, intent: str, noul: float) -> dict:
         "observations": [
             {
                 "request_hash": request_hash,
+                "requested_model": requested_model,
+                "model": resolved_model,
                 "ok": True,
                 "total_latency_ms": 100.0,
             }
@@ -104,18 +125,25 @@ def _report(request_hash: str, intent: str, noul: float) -> dict:
     }
 
 
-def test_select_pinned_model_ignores_moving_aliases():
-    selected = select_pinned_model(
+def test_select_catalog_model_prefers_documented_latest_alias():
+    selected = select_catalog_model(
         (
-            {"name": "jev-latest", "release_date": "2026-09-23"},
-            {"name": "jev-1.12.0", "release_date": "2026-09-15"},
-            {"name": "jev-1.13.0", "release_date": "2026-09-21"},
+            {
+                "name": "jev-latest",
+                "description": "General-purpose system one model.",
+                "release_date": "2026-09-15",
+            },
+            {
+                "name": "jev-1.13.0",
+                "description": "Versioned system one model.",
+                "release_date": "2026-09-21",
+            },
         )
     )
-    assert selected == "jev-1.13.0"
+    assert selected == "jev-latest"
 
 
-def test_freeze_refuses_moving_alias(tmp_path: Path):
+def test_freeze_accepts_alias_only_when_bound_to_catalog(tmp_path: Path):
     template = tmp_path / "template.json"
     template.write_text(
         json.dumps(
@@ -139,14 +167,16 @@ def test_freeze_refuses_moving_alias(tmp_path: Path):
         ),
         encoding="utf-8",
     )
-    with pytest.raises(LiveAcceptanceError, match="moving_model_alias_forbidden"):
-        freeze_specimen(
-            template,
-            tmp_path / "frozen.json",
-            model="jev-latest",
-            source_commit="a" * 40,
-            frozen_at_utc="2026-09-23T18:00:00Z",
-        )
+    frozen = freeze_specimen(
+        template,
+        tmp_path / "frozen.json",
+        model="jev-latest",
+        model_catalog=MODEL_CATALOG,
+        source_commit="a" * 40,
+        frozen_at_utc="2026-09-23T18:00:00Z",
+    )
+    assert frozen.model == "jev-latest"
+    assert frozen.model_catalog_sha256 == sha256_json(list(MODEL_CATALOG))
 
 
 def test_model_discovery_rejects_redirect(monkeypatch):
@@ -196,7 +226,8 @@ def test_stale_hash_blocks_freeze_before_specimen_write(tmp_path: Path):
         freeze_specimen(
             template,
             output,
-            model="jev-1.13.0",
+            model="jev-latest",
+            model_catalog=MODEL_CATALOG,
             source_commit="a" * 40,
             frozen_at_utc="2026-09-23T18:00:00Z",
         )
@@ -232,7 +263,8 @@ def test_freeze_is_create_only(tmp_path: Path):
     freeze_specimen(
         template,
         output,
-        model="jev-1.13.0",
+        model="jev-latest",
+        model_catalog=MODEL_CATALOG,
         source_commit="a" * 40,
         frozen_at_utc="2026-09-23T18:00:00Z",
     )
@@ -240,9 +272,46 @@ def test_freeze_is_create_only(tmp_path: Path):
         freeze_specimen(
             template,
             output,
-            model="jev-1.13.0",
+            model="jev-latest",
+            model_catalog=MODEL_CATALOG,
             source_commit="a" * 40,
             frozen_at_utc="2026-09-23T18:01:00Z",
+        )
+
+
+def test_freeze_rejects_model_missing_from_catalog(tmp_path: Path):
+    template = tmp_path / "template.json"
+    template.write_text(
+        json.dumps(
+            {
+                "experiment_id": EXPERIMENT_ID,
+                "schema_version": SCHEMA_VERSION,
+                "model": "__PINNED_MODEL__",
+                "question_version": "q1",
+                "state": "synthetic state",
+                "questions": [
+                    {
+                        "kind": "noul",
+                        "key": "needs_tool",
+                        "prompt": "Needs tool?",
+                        "threshold": 0.5,
+                    }
+                ],
+                "providers": ["typesafe", "vercel-typesafe"],
+                "runs_per_provider": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(LiveAcceptanceError, match="model_not_in_frozen_catalog"):
+        freeze_specimen(
+            template,
+            tmp_path / "frozen.json",
+            model="jev-other",
+            model_catalog=MODEL_CATALOG,
+            source_commit="a" * 40,
+            frozen_at_utc="2026-09-23T18:00:00Z",
         )
 
 
@@ -298,6 +367,37 @@ def test_reconciliation_requires_review_on_semantic_disagreement():
     result = reconcile_provider_reports(specimen, reports)
     assert result["status"] == "REVIEW_DISAGREEMENT"
     assert result["authority_promoted"] is False
+
+
+def test_reconciliation_fails_resolved_model_drift():
+    specimen = _specimen()
+    reports = {
+        "typesafe": _report(
+            "same-hash",
+            "schedule",
+            0.91,
+            resolved_model="jev-build-a",
+        ),
+        "vercel-typesafe": _report(
+            "same-hash",
+            "schedule",
+            0.91,
+            resolved_model="jev-build-b",
+        ),
+    }
+    result = reconcile_provider_reports(specimen, reports)
+    assert result["status"] == "FAIL_MODEL_DRIFT"
+    assert result["resolved_model_identity"] is False
+
+
+def test_reconciliation_fails_catalog_drift():
+    specimen = _specimen()
+    reports = {
+        "typesafe": _report("same-hash", "schedule", 0.91),
+        "vercel-typesafe": _report("same-hash", "schedule", 0.91),
+    }
+    result = reconcile_provider_reports(specimen, reports, catalog_stable=False)
+    assert result["status"] == "FAIL_MODEL_CATALOG_DRIFT"
 
 
 def test_reconciliation_fails_request_drift():
