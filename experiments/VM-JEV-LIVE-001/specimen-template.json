@@ -1,0 +1,49 @@
+{
+  "experiment_id": "VM-JEV-LIVE-001",
+  "schema_version": "vm-jev-live-001.v1",
+  "model": "__PINNED_MODEL__",
+  "question_version": "vm-jev-live-001.q1",
+  "state": "A caller says: Move my Thursday afternoon appointment to Friday afternoon and send confirmation. No specific slot has been selected yet.",
+  "questions": [
+    {
+      "kind": "choice",
+      "key": "intent",
+      "prompt": "Select the best matching intent for this caller request.",
+      "options": [
+        "schedule",
+        "faq",
+        "other"
+      ]
+    },
+    {
+      "kind": "noul",
+      "key": "needs_tool",
+      "prompt": "Does satisfying this request require an external scheduling or messaging tool?",
+      "threshold": 0.5
+    },
+    {
+      "kind": "score",
+      "key": "materiality",
+      "prompt": "Rate the consequence materiality of acting on this request.",
+      "levels": [
+        [
+          "low",
+          "No external state changes."
+        ],
+        [
+          "medium",
+          "A bounded and readily reversible external state change."
+        ],
+        [
+          "high",
+          "A material, costly, sensitive, or difficult-to-reverse external consequence."
+        ]
+      ]
+    }
+  ],
+  "providers": [
+    "typesafe",
+    "vercel-typesafe"
+  ],
+  "runs_per_provider": 5
+}
