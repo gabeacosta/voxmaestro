@@ -504,6 +504,7 @@ def _run_provider(
             "model": specimen.model,
             "audit_log": str(audit_path),
             "timeout_s": 0.8,
+            "allow_model_alias": specimen.model.endswith("-latest"),
         }
     )
     results: queue.Queue[dict[str, Any]] = queue.Queue()
@@ -571,6 +572,8 @@ def _run_provider(
 def reconcile_provider_reports(
     specimen: FrozenSpecimen,
     reports: Mapping[str, Mapping[str, Any]],
+    *,
+    catalog_stable: bool = True,
 ) -> dict[str, Any]:
     """Compare provider results without granting either provider authority."""
 
@@ -597,6 +600,24 @@ def reconcile_provider_reports(
         for index in range(specimen.runs_per_provider)
     ]
     request_identity = all(pair["same"] and pair["typesafe"] for pair in hash_pairs)
+
+    all_observations = left_obs + right_obs
+    requested_model_identity = all(
+        record.get("requested_model") == specimen.model
+        for record in all_observations
+    )
+    resolved_models = sorted(
+        {
+            str(record.get("model"))
+            for record in all_observations
+            if isinstance(record.get("model"), str) and record.get("model")
+        }
+    )
+    resolved_model_identity = (
+        requested_model_identity
+        and len(resolved_models) == 1
+        and len(all_observations) == 2 * specimen.runs_per_provider
+    )
 
     question_map = {question.key: question for question in specimen.questions}
     comparisons: list[dict[str, Any]] = []
@@ -633,6 +654,10 @@ def reconcile_provider_reports(
         status = "FAIL_PROVIDER"
     elif not request_identity:
         status = "FAIL_REQUEST_DRIFT"
+    elif not resolved_model_identity:
+        status = "FAIL_MODEL_DRIFT"
+    elif not catalog_stable:
+        status = "FAIL_MODEL_CATALOG_DRIFT"
     elif not semantic_agreement:
         status = "REVIEW_DISAGREEMENT"
     else:
@@ -641,7 +666,11 @@ def reconcile_provider_reports(
     return {
         "experiment_id": specimen.experiment_id,
         "specimen_sha256": specimen.sha256,
-        "model": specimen.model,
+        "requested_model": specimen.model,
+        "model_catalog_sha256": specimen.model_catalog_sha256,
+        "resolved_models": resolved_models,
+        "resolved_model_identity": resolved_model_identity,
+        "catalog_stable": catalog_stable,
         "status": status,
         "provider_valid": provider_valid,
         "request_identity": request_identity,
@@ -704,6 +733,13 @@ def run_live_acceptance(
         raise LiveAcceptanceError("AI_GATEWAY_API_KEY_required")
     if out_dir.exists():
         raise LiveAcceptanceError("evidence_directory_already_exists")
+    current_catalog = discover_typesafe_models(typesafe_api_key)
+    current_catalog_sha256 = sha256_json(list(current_catalog))
+    if current_catalog_sha256 != specimen.model_catalog_sha256:
+        raise LiveAcceptanceError(
+            "model_catalog_drift_before_inference:"
+            f"frozen={specimen.model_catalog_sha256}:current={current_catalog_sha256}"
+        )
     out_dir.mkdir(parents=True, mode=0o700)
     if repo_dir is not None:
         actual_commit = current_source_commit(repo_dir)
@@ -714,6 +750,7 @@ def run_live_acceptance(
 
     frozen_copy = json.loads(specimen_path.read_text(encoding="utf-8"))
     _write_json_once(out_dir / "frozen-specimen.json", frozen_copy)
+    _write_json_once(out_dir / "model-catalog-pre.json", list(current_catalog))
 
     reports = {
         "typesafe": _run_provider(specimen, "typesafe", typesafe_api_key, out_dir),
@@ -733,7 +770,14 @@ def run_live_acceptance(
         for provider, report in reports.items()
     }
     _write_json_once(out_dir / "provider-results.json", safe_reports)
-    reconciliation = reconcile_provider_reports(specimen, reports)
+    post_catalog = discover_typesafe_models(typesafe_api_key)
+    _write_json_once(out_dir / "model-catalog-post.json", list(post_catalog))
+    post_catalog_sha256 = sha256_json(list(post_catalog))
+    reconciliation = reconcile_provider_reports(
+        specimen,
+        reports,
+        catalog_stable=post_catalog_sha256 == specimen.model_catalog_sha256,
+    )
     _write_json_once(out_dir / "reconciliation.json", reconciliation)
     seal = seal_evidence(out_dir, reconciliation["status"])
     return {
