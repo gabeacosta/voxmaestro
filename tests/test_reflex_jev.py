@@ -10,20 +10,21 @@ from __future__ import annotations
 import json
 import urllib.request
 from dataclasses import replace
-from typing import Any, Mapping
-
 import pytest
 
 from voxmaestro.reflex.jev_backend import (
     QUESTION_CHOICE,
     QUESTION_NOUL,
     QUESTION_SCORE,
+    TYPESAFE_NATIVE_ENDPOINT,
+    VERCEL_TYPESAFE_ENDPOINT,
     DecisionRequest,
     DecisionTrace,
     JevProtocolError,
     JevQuestion,
     JevReflexBackend,
     _NoRedirect,
+    jev_backend_from_config,
     make_jsonl_observer,
 )
 
@@ -31,10 +32,9 @@ PINNED_MODEL = "jev-2026-09-21"
 
 
 class FakeTransport:
-    def __init__(self, body=None, *, error=None, provider="fake"):
+    def __init__(self, body=None, *, error=None):
         self.body = body
         self.error = error
-        self.provider = provider
         self.calls = []
 
     def request_systemone(self, payload):
@@ -263,18 +263,71 @@ def test_redirect_handler_rejects_all_redirects(status):
                                  headers={}, newurl="https://other.example/systemone")
 
 
-@pytest.mark.parametrize("provider", ["typesafe-native", "vercel-typesafe-compat"])
-def test_provider_surfaces_share_identical_systemone_codec(trace, score_question, provider):
-    observer = CaptureObserver()
-    body = valid_body(answers={"risk": {"type": "score", "score": 1.63, "confidence": 0.84}})
-    transport = FakeTransport(body, provider=provider)
-    backend = backend_for(transport, observer)
+class FakeHttpResponse:
+    def __init__(self, body):
+        self._body = json.dumps(body).encode("utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def read(self):
+        return self._body
+
+
+@pytest.mark.parametrize(
+    ("provider", "expected_endpoint"),
+    [
+        ("typesafe", TYPESAFE_NATIVE_ENDPOINT),
+        ("vercel-typesafe", VERCEL_TYPESAFE_ENDPOINT),
+    ],
+)
+def test_provider_surfaces_share_identical_systemone_codec(
+    tmp_path, monkeypatch, trace, score_question, provider, expected_endpoint
+):
+    captured = {}
+    body = valid_body(
+        answers={"risk": {"type": "score", "score": 1.63, "confidence": 0.84}}
+    )
+
+    def fake_open(_opener, request, timeout):
+        captured["url"] = request.full_url
+        captured["authorization"] = request.get_header("Authorization")
+        captured["timeout"] = timeout
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeHttpResponse(body)
+
+    monkeypatch.setattr(urllib.request.OpenerDirector, "open", fake_open)
+    backend = jev_backend_from_config(
+        {
+            "provider": provider,
+            "api_key": "test-key",
+            "model": PINNED_MODEL,
+            "audit_log": str(tmp_path / f"{provider}.jsonl"),
+        }
+    )
+
     verdicts = backend.decide(request_for(trace, score_question))
-    assert len(transport.calls) == 1
-    payload = transport.calls[0]
-    assert payload["model"] == PINNED_MODEL
-    assert payload["questions"]["risk"]["type"] == "score"
+
+    assert captured["url"] == expected_endpoint
+    assert captured["authorization"] == "Bearer test-key"
+    assert captured["payload"]["model"] == PINNED_MODEL
+    assert captured["payload"]["questions"]["risk"]["type"] == "score"
     verdict = verdicts[0]
     assert verdict.ok is True
     assert verdict.value == 1.63
     assert verdict.confidence == 0.84
+
+
+def test_unknown_provider_is_rejected(tmp_path):
+    with pytest.raises(ValueError, match="unknown_jev_provider"):
+        jev_backend_from_config(
+            {
+                "provider": "unexpected",
+                "api_key": "test-key",
+                "model": PINNED_MODEL,
+                "audit_log": str(tmp_path / "unexpected.jsonl"),
+            }
+        )
