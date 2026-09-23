@@ -17,6 +17,16 @@ from .runtime import (
     RuntimeToolResult,
     VoxMaestroRuntime,
 )
+from .outcome import (
+    OutcomeAttestation,
+    OutcomeGate,
+    OutcomeStatus,
+    OutcomeVerificationError,
+    OutcomeVerificationRequest,
+    RequirementFinding,
+    TaskContract,
+    TaskRequirement,
+)
 
 __version__ = "0.1.0"
 __all__ = [
@@ -33,4 +43,12 @@ __all__ = [
     "CallPhase",
     "TransitionResult",
     "ToolCallResult",
+    "OutcomeAttestation",
+    "OutcomeGate",
+    "OutcomeStatus",
+    "OutcomeVerificationError",
+    "OutcomeVerificationRequest",
+    "RequirementFinding",
+    "TaskContract",
+    "TaskRequirement",
 ]

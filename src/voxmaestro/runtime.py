@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
@@ -22,6 +22,7 @@ from .conductor import (
     StateMachine,
     TransitionResult,
 )
+from .outcome import OutcomeAttestation, OutcomeGate, TaskContract
 from .reflex.gate import ReflexGate
 
 logger = logging.getLogger("voxmaestro.runtime")
@@ -282,6 +283,21 @@ class CallSession:
             on_metric=self.on_metric,
         )
 
+    async def verify_outcome(
+        self,
+        contract: TaskContract,
+        workflow_result: Mapping[str, Any],
+        *,
+        evidence: Sequence[Mapping[str, Any]] = (),
+    ) -> OutcomeAttestation:
+        """Explicit cold-path verification after the workflow has accepted a result."""
+
+        return await self.runtime.verify_outcome(
+            contract,
+            workflow_result,
+            evidence=evidence,
+        )
+
 
 class VoxMaestroRuntime:
     """Shared runtime that creates isolated per-call sessions."""
@@ -294,6 +310,7 @@ class VoxMaestroRuntime:
         handoff_executor: Optional[HandoffExecutor] = None,
         intent_classifier: Optional[IntentClassifier] = None,
         reflex_gate: Optional[ReflexGate] = None,
+        outcome_gate: Optional[OutcomeGate] = None,
         dry_run: bool = False,
     ):
         SchemaLoader._validate(config)
@@ -303,6 +320,7 @@ class VoxMaestroRuntime:
         self.handoff = RuntimeHandoff(config, handoff_executor, dry_run=dry_run)
         self.intent_classifier = intent_classifier
         self.reflex_gate = reflex_gate
+        self.outcome_gate = outcome_gate
         self.guardrails = config.get("guardrails", {})
 
     @classmethod
@@ -327,6 +345,26 @@ class VoxMaestroRuntime:
             on_filler=on_filler,
             on_transfer=on_transfer,
             on_metric=on_metric,
+        )
+
+    async def verify_outcome(
+        self,
+        contract: TaskContract,
+        workflow_result: Mapping[str, Any],
+        *,
+        evidence: Sequence[Mapping[str, Any]] = (),
+    ) -> OutcomeAttestation:
+        """Verify semantic completion without changing execution state or authority."""
+
+        if self.outcome_gate is None:
+            raise RuntimeConfigurationError(
+                "Outcome verification requires an OutcomeGate; "
+                "workflow acceptance is not outcome attestation."
+            )
+        return await self.outcome_gate.verify(
+            contract,
+            workflow_result,
+            evidence=evidence,
         )
 
     async def _process_turn(

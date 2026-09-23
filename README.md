@@ -42,6 +42,7 @@ The public repo is useful as an implementation proof surface for:
 - pre-LLM filler behavior;
 - explicit human-handoff state;
 - runtime truth / capability boundaries;
+- explicit post-acceptance semantic outcome attestation;
 - an early Pipecat adapter.
 
 ## Current maturity
@@ -53,6 +54,7 @@ The public repo is useful as an implementation proof surface for:
 | Tool bridge / dry-run path | Implemented |
 | Handoff protocol | Implemented |
 | Runtime stream / truth surfaces | Implemented |
+| Outcome attestation seam | Implemented; adapter-neutral, explicit cold path |
 | Pipecat adapter | Early adapter |
 | PII redaction | Configuration exists; enforcement not complete |
 | Production telephony transports | Not included |
@@ -227,6 +229,28 @@ The public repo implements the orchestration semantics; it does not include ever
 
 ---
 
+## Workflow acceptance vs outcome attestation
+
+VoxMaestro does not treat a valid workflow state as proof that the originating task was
+fully accomplished.
+
+```text
+provider completion
+        !=
+workflow acceptance
+        !=
+semantic outcome attestation
+```
+
+The optional `OutcomeGate` evaluates a frozen task contract against the accepted workflow
+result and its evidence bundle. It is explicit and cold-path: `process_turn()` never invokes
+it automatically, and the verifier receives no execution authority.
+
+See [Outcome attestation v0](docs/outcome-attestation-v0.md) for the contract, status model,
+hash binding, and adapter boundary.
+
+---
+
 ## Hot path vs cold path
 
 The design separates operations that affect the live turn from operations that can be durable/asynchronous.
@@ -288,7 +312,8 @@ The test suite is the evidence for the specific public behavior it covers. It do
 - finished PII-redaction enforcement;
 - LiveKit/Vocode adapters;
 - a visual state-machine editor;
-- claims that provider completion equals workflow acceptance.
+- claims that provider completion equals workflow acceptance;
+- claims that workflow acceptance equals semantic task completion.
 
 ---
 
