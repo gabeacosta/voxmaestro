@@ -1,0 +1,236 @@
+{
+  "experiment_id": "VM-JEV-OUTCOME-001",
+  "schema_version": "vm-jev-outcome-001.v1",
+  "question_version": "vm-jev-outcome-001.q1",
+  "uncertainty_threshold": 0.5,
+  "purpose": "Blindly compare a Jev completion challenger against an agent self-declaration using synthetic cases with frozen reference labels.",
+  "cases": [
+    {
+      "case_id": "complete-agent-done",
+      "agent_claim": "done",
+      "reference_done": true,
+      "contract": {
+        "task_id": "meeting-complete-001",
+        "objective": "Move Sarah's meeting to Thursday afternoon and notify Sarah.",
+        "requirements": [
+          {
+            "requirement_id": "meeting",
+            "statement": "The intended Sarah meeting is moved to Thursday afternoon."
+          },
+          {
+            "requirement_id": "notice",
+            "statement": "Sarah is notified of the meeting change."
+          }
+        ],
+        "constraints": [],
+        "prohibited_effects": []
+      },
+      "workflow_result": {
+        "workflow_state": "accepted",
+        "tool_calls": [
+          "calendar.move",
+          "message.send"
+        ]
+      },
+      "evidence": [
+        {
+          "ref": "calendar:event-42",
+          "observed": {
+            "day": "Thursday",
+            "time": "14:00",
+            "status": "confirmed"
+          }
+        },
+        {
+          "ref": "message:17",
+          "observed": {
+            "recipient": "Sarah",
+            "status": "delivered"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "missing-notice-agent-done",
+      "agent_claim": "done",
+      "reference_done": false,
+      "contract": {
+        "task_id": "meeting-missing-notice-001",
+        "objective": "Move Sarah's meeting to Thursday afternoon and notify Sarah.",
+        "requirements": [
+          {
+            "requirement_id": "meeting",
+            "statement": "The intended Sarah meeting is moved to Thursday afternoon."
+          },
+          {
+            "requirement_id": "notice",
+            "statement": "Sarah is notified of the meeting change."
+          }
+        ],
+        "constraints": [],
+        "prohibited_effects": []
+      },
+      "workflow_result": {
+        "workflow_state": "accepted",
+        "tool_calls": [
+          "calendar.move"
+        ]
+      },
+      "evidence": [
+        {
+          "ref": "calendar:event-43",
+          "observed": {
+            "day": "Thursday",
+            "time": "15:00",
+            "status": "confirmed"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "ambiguous-window-agent-done",
+      "agent_claim": "done",
+      "reference_done": false,
+      "contract": {
+        "task_id": "meeting-ambiguous-window-001",
+        "objective": "Move Sarah's meeting to Thursday afternoon.",
+        "requirements": [
+          {
+            "requirement_id": "meeting",
+            "statement": "The intended Sarah meeting is moved to Thursday afternoon."
+          }
+        ],
+        "constraints": [],
+        "prohibited_effects": []
+      },
+      "workflow_result": {
+        "workflow_state": "accepted",
+        "tool_calls": [
+          "calendar.move"
+        ]
+      },
+      "evidence": [
+        {
+          "ref": "calendar:event-44",
+          "observed": {
+            "day": "Thursday",
+            "time": null,
+            "status": "updated"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "complete-agent-not-done",
+      "agent_claim": "not_done",
+      "reference_done": true,
+      "contract": {
+        "task_id": "meeting-complete-002",
+        "objective": "Move Sarah's meeting to Thursday afternoon and notify Sarah.",
+        "requirements": [
+          {
+            "requirement_id": "meeting",
+            "statement": "The intended Sarah meeting is moved to Thursday afternoon."
+          },
+          {
+            "requirement_id": "notice",
+            "statement": "Sarah is notified of the meeting change."
+          }
+        ],
+        "constraints": [],
+        "prohibited_effects": []
+      },
+      "workflow_result": {
+        "workflow_state": "accepted",
+        "tool_calls": [
+          "calendar.move",
+          "message.send"
+        ]
+      },
+      "evidence": [
+        {
+          "ref": "calendar:event-45",
+          "observed": {
+            "day": "Thursday",
+            "time": "13:30",
+            "status": "confirmed"
+          }
+        },
+        {
+          "ref": "message:18",
+          "observed": {
+            "recipient": "Sarah",
+            "status": "delivered"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "wrong-day-agent-done",
+      "agent_claim": "done",
+      "reference_done": false,
+      "contract": {
+        "task_id": "meeting-wrong-day-001",
+        "objective": "Move Sarah's meeting to Thursday afternoon and notify Sarah.",
+        "requirements": [
+          {
+            "requirement_id": "meeting",
+            "statement": "The intended Sarah meeting is moved to Thursday afternoon."
+          },
+          {
+            "requirement_id": "notice",
+            "statement": "Sarah is notified of the meeting change."
+          }
+        ],
+        "constraints": [],
+        "prohibited_effects": []
+      },
+      "workflow_result": {
+        "workflow_state": "accepted",
+        "tool_calls": [
+          "calendar.move",
+          "message.send"
+        ]
+      },
+      "evidence": [
+        {
+          "ref": "calendar:event-46",
+          "observed": {
+            "day": "Friday",
+            "time": "14:00",
+            "status": "confirmed"
+          }
+        },
+        {
+          "ref": "message:19",
+          "observed": {
+            "recipient": "Sarah",
+            "status": "delivered"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "no-evidence-agent-not-done",
+      "agent_claim": "not_done",
+      "reference_done": false,
+      "contract": {
+        "task_id": "meeting-no-evidence-001",
+        "objective": "Move Sarah's meeting to Thursday afternoon.",
+        "requirements": [
+          {
+            "requirement_id": "meeting",
+            "statement": "The intended Sarah meeting is moved to Thursday afternoon."
+          }
+        ],
+        "constraints": [],
+        "prohibited_effects": []
+      },
+      "workflow_result": {
+        "workflow_state": "accepted",
+        "tool_calls": []
+      },
+      "evidence": []
+    }
+  ]
+}
