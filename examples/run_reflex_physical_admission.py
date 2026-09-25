@@ -165,6 +165,7 @@ def main() -> int:
     final_path = args.out / (
         "physical-preflight.json" if args.preflight_only else "physical-admission.json"
     )
+    final_path.unlink(missing_ok=True)
     try:
         preflight = _preflight(args.corpus, args.model_path)
         _require_port_free("127.0.0.1", args.port)
