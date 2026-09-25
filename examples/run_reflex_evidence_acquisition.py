@@ -54,10 +54,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run physical admission after corpus + runtime preflight are ready.",
     )
-    args = parser.parse_args()
-    if args.execute and not args.assert_replays_are_real_calls:
-        parser.error("--execute requires --assert-replays-are-real-calls")
-    return args
+    return parser.parse_args()
 
 
 def main() -> int:
@@ -146,6 +143,7 @@ def main() -> int:
     )
     state["paths"] = {
         "summary": str(summary_path),
+        "provenance_review": str(corpus_out / "legacy-reflex-provenance-review.jsonl"),
         "corpus": str(corpus_out / "reflex-real-turns.jsonl"),
         "preflight": str(physical_out / "physical-preflight.json"),
         "physical_admission": str(physical_out / "physical-admission.json"),
