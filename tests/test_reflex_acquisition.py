@@ -9,6 +9,7 @@ from voxmaestro.reflex.acquisition import (
     BLOCKED_INSUFFICIENT_REAL_LABELS,
     BLOCKED_OPERATOR_PROVENANCE_ASSERTION,
     BLOCKED_PHYSICAL_ADMISSION,
+    BLOCKED_PROVENANCE_CLASSIFICATION,
     BLOCKED_RUNTIME_PREREQUISITES,
     PASS_REFLEX_PHYSICAL_ADMISSION,
     READY_FOR_PHYSICAL_ADMISSION,
@@ -25,21 +26,30 @@ def _summary(
     final_rows: int = 60,
     final_positive: int = 59,
     sufficient: bool = True,
+    unreviewed: int | None = None,
+    marked_real: int | None = None,
 ):
+    if unreviewed is None:
+        unreviewed = 0 if asserted else unique_ready
+    if marked_real is None:
+        marked_real = final_rows if asserted else 0
     return {
         "real_call_assertion": asserted,
+        "provenance_mode": "all-real-assertion" if asserted else "selective-manifest",
         "unique_ready_replay_rows": unique_ready,
         "unique_ready_tool_positive_rows": unique_positive,
-        "final_rows": final_rows if asserted else 0,
-        "final_tool_positive_rows": final_positive if asserted else 0,
-        "admission_shape_sufficient": sufficient if asserted else False,
+        "marked_real_rows": marked_real,
+        "unreviewed_ready_rows": unreviewed,
+        "final_rows": final_rows if (asserted or marked_real) else 0,
+        "final_tool_positive_rows": final_positive if (asserted or marked_real) else 0,
+        "admission_shape_sufficient": sufficient if (asserted or marked_real) else False,
     }
 
 
-def test_counts_cannot_substitute_for_operator_provenance_assertion():
+def test_candidate_counts_do_not_substitute_for_selective_provenance_review():
     state = classify_acquisition(_summary(asserted=False))
 
-    assert state["state"] == BLOCKED_OPERATOR_PROVENANCE_ASSERTION
+    assert state["state"] == BLOCKED_PROVENANCE_CLASSIFICATION
 
 
 def test_insufficient_candidate_rows_stay_blocked_before_assertion():
@@ -50,16 +60,66 @@ def test_insufficient_candidate_rows_stay_blocked_before_assertion():
     assert state["state"] == BLOCKED_INSUFFICIENT_REAL_LABELS
 
 
-def test_asserted_corpus_requires_runtime_preflight():
-    state = classify_acquisition(_summary(asserted=True))
+def test_selectively_reviewed_corpus_can_require_runtime_preflight():
+    state = classify_acquisition(
+        _summary(
+            asserted=False,
+            marked_real=60,
+            unreviewed=0,
+            final_rows=60,
+            final_positive=59,
+            sufficient=True,
+        )
+    )
 
     assert state["state"] == BLOCKED_RUNTIME_PREREQUISITES
     assert state["preflight"] == "NOT_RUN"
 
 
+def test_fully_reviewed_mixed_dataset_below_real_floor_is_insufficient():
+    state = classify_acquisition(
+        _summary(
+            asserted=False,
+            unique_ready=80,
+            unique_positive=70,
+            marked_real=20,
+            unreviewed=0,
+            final_rows=20,
+            final_positive=18,
+            sufficient=False,
+        )
+    )
+
+    assert state["state"] == BLOCKED_INSUFFICIENT_REAL_LABELS
+
+
+def test_selective_real_rows_can_satisfy_shape_without_blanket_assertion():
+    state = classify_acquisition(
+        _summary(
+            asserted=False,
+            unique_ready=80,
+            unique_positive=70,
+            marked_real=65,
+            unreviewed=15,
+            final_rows=65,
+            final_positive=59,
+            sufficient=True,
+        )
+    )
+
+    assert state["state"] == BLOCKED_RUNTIME_PREREQUISITES
+
+
 def test_failed_runtime_preflight_is_not_model_admission_failure():
     state = classify_acquisition(
-        _summary(asserted=True),
+        _summary(
+            asserted=False,
+            marked_real=60,
+            unreviewed=0,
+            final_rows=60,
+            final_positive=59,
+            sufficient=True,
+        ),
         physical_preflight={"verdict": "BLOCKED_RUNTIME_PREREQUISITES"},
     )
 
@@ -144,7 +204,7 @@ def test_one_shot_stops_at_provenance_before_model_preflight(tmp_path):
 
     assert result.returncode == 2
     state = json.loads((out / "acquisition-state.json").read_text())
-    assert state["state"] == BLOCKED_OPERATOR_PROVENANCE_ASSERTION
+    assert state["state"] == BLOCKED_PROVENANCE_CLASSIFICATION
     assert state["counts"]["unique_ready_replay_rows"] == 59
     assert state["counts"]["unique_ready_tool_positive_rows"] == 59
     assert not (out / "physical" / "physical-preflight.json").exists()
