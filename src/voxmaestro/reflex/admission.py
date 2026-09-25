@@ -245,6 +245,10 @@ def build_legacy_provenance_review(
                 "expected_language": row["expected_language"],
             }
         )
+
+    stale = sorted(set(classifications) - seen)
+    if stale:
+        raise ValueError("provenance review contains unknown source_digest values")
     return review
 
 
