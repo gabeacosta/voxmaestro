@@ -31,20 +31,54 @@ Required shape:
 - at least 30 unique replay rows;
 - at least 59 unique tool-needed positive rows.
 
-### BLOCKED_OPERATOR_PROVENANCE_ASSERTION
+### BLOCKED_PROVENANCE_CLASSIFICATION
 
-The local data has enough candidate evidence, but the operator has not asserted
-that the eligible `bland_replay` rows came from real calls.
+The local data has enough candidate replay evidence, but one or more eligible
+rows are still unreviewed for provenance.
 
-Counts do not substitute for this assertion.
+For mixed real/demo data, do **not** use the blanket
+`--assert-replays-are-real-calls` flag.
 
-After independently verifying provenance, rerun with:
+The importer creates:
 
-```bash
-python examples/run_reflex_evidence_acquisition.py \
-  --model-path /path/to/Qwen3-0.6B-4bit \
-  --assert-replays-are-real-calls
+```text
+~/.voxmaestro/reflex/VM-REFLEX-001/corpus/
+  legacy-reflex-provenance-review.jsonl
 ```
+
+Each row contains:
+
+- `source_digest` — opaque stable identifier derived from the source row;
+- a redacted transcript preview;
+- the mapped intent/tool-needed label;
+- `classification` — `real`, `demo`, or `unreviewed`.
+
+The original call id is not persisted in the review artifact.
+
+Review the file locally and change only the classifications you can establish:
+
+```json
+{"source_digest":"...","classification":"real", ...}
+{"source_digest":"...","classification":"demo", ...}
+{"source_digest":"...","classification":"unreviewed", ...}
+```
+
+Only `real` rows enter `reflex-real-turns.jsonl`. Demo and unreviewed rows
+remain excluded from admission evidence.
+
+Rerun the same acquisition command after review. If all candidates are reviewed
+but the real subset does not meet the frozen evidence floor, the state becomes
+`BLOCKED_INSUFFICIENT_REAL_LABELS`.
+
+If the underlying training data changes so a reviewed digest no longer exists,
+the importer returns `TEST_INVALID` rather than silently rebinding or dropping
+the old provenance decision.
+
+### Homogeneous all-real datasets
+
+`--assert-replays-are-real-calls` remains supported only when the operator has
+independently established that the **entire eligible replay set** came from real
+calls. It is intentionally the wrong mode for mixed real/demo data.
 
 ### BLOCKED_RUNTIME_PREREQUISITES
 
@@ -82,9 +116,11 @@ The acquisition directory contains:
 
 - `acquisition-state.json` — transcript-free state and counts;
 - `corpus/legacy-reflex-summary.json` — local corpus summary;
-- `corpus/legacy-reflex-staging.jsonl` — local staging/review records;
-- `corpus/reflex-real-turns.jsonl` — emitted only from explicitly asserted
-  eligible real replays;
+- `corpus/legacy-reflex-staging.jsonl` — local staging records;
+- `corpus/legacy-reflex-provenance-review.jsonl` — local redacted selective
+  provenance review;
+- `corpus/reflex-real-turns.jsonl` — emitted only from eligible rows explicitly
+  classified `real` (or from a valid homogeneous all-real assertion);
 - `physical/physical-preflight.json` — non-executing runtime prerequisite
   evidence;
 - `physical/model-admission.json` — model admission evidence after execution;
