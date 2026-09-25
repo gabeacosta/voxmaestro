@@ -146,6 +146,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--port", type=int, default=8081)
     parser.add_argument("--voice-runs", type=int, default=10)
+    parser.add_argument(
+        "--preflight-only",
+        action="store_true",
+        help="Validate corpus/model/dependencies without starting the model or voice workload.",
+    )
     args = parser.parse_args()
     if args.voice_runs < 3:
         parser.error("--voice-runs must be >= 3")
@@ -157,14 +162,24 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
-    final_path = args.out / "physical-admission.json"
+    final_path = args.out / (
+        "physical-preflight.json" if args.preflight_only else "physical-admission.json"
+    )
     try:
         preflight = _preflight(args.corpus, args.model_path)
         _require_port_free("127.0.0.1", args.port)
     except Exception as error:
         report = {
-            "contract_version": "reflex-physical-admission.v1",
-            "verdict": "TEST_INVALID",
+            "contract_version": (
+                "reflex-physical-preflight.v1"
+                if args.preflight_only
+                else "reflex-physical-admission.v1"
+            ),
+            "verdict": (
+                "BLOCKED_RUNTIME_PREREQUISITES"
+                if args.preflight_only
+                else "TEST_INVALID"
+            ),
             "authority": "EVIDENCE_ONLY_NOT_ROUTING_AUTHORITY",
             "stage": "preflight",
             "error": f"{type(error).__name__}: {error}",
@@ -176,8 +191,16 @@ def main() -> int:
 
     if not all(preflight["checks"].values()):
         report = {
-            "contract_version": "reflex-physical-admission.v1",
-            "verdict": "TEST_INVALID",
+            "contract_version": (
+                "reflex-physical-preflight.v1"
+                if args.preflight_only
+                else "reflex-physical-admission.v1"
+            ),
+            "verdict": (
+                "BLOCKED_RUNTIME_PREREQUISITES"
+                if args.preflight_only
+                else "TEST_INVALID"
+            ),
             "authority": "EVIDENCE_ONLY_NOT_ROUTING_AUTHORITY",
             "stage": "preflight",
             "preflight": preflight,
@@ -186,6 +209,19 @@ def main() -> int:
         _write(final_path, report)
         print(json.dumps({"evidence": str(final_path), "verdict": report["verdict"]}))
         return 2
+
+    if args.preflight_only:
+        report = {
+            "contract_version": "reflex-physical-preflight.v1",
+            "verdict": "READY_FOR_PHYSICAL_ADMISSION",
+            "authority": "EVIDENCE_ONLY_NOT_ROUTING_AUTHORITY",
+            "stage": "preflight",
+            "preflight": preflight,
+            "runner": _runner_provenance(),
+        }
+        _write(final_path, report)
+        print(json.dumps({"evidence": str(final_path), "verdict": report["verdict"]}))
+        return 0
 
     server_log_path = args.out / "mlx-vlm-server.log"
     voice_log_path = args.out / "voice-load.log"
