@@ -101,8 +101,9 @@ def parse_args() -> argparse.Namespace:
         "--assert-replays-are-real-calls",
         action="store_true",
         help=(
-            "Required before final admission rows are emitted. This is an operator "
-            "assertion about the provenance of local bland_replay records."
+            "Use only when the entire eligible bland_replay set is independently "
+            "known to come from real calls. Mixed data should use the selective "
+            "provenance review instead."
         ),
     )
     args = parser.parse_args()
