@@ -6,6 +6,7 @@ import json
 import pytest
 
 from voxmaestro.reflex.admission import (
+    admission_provenance,
     adjudicate_physical,
     evaluate_rows,
     finalize_legacy_replay_rows,
@@ -330,6 +331,35 @@ def test_finalize_can_meet_shape_gate_from_ground_truth_tool_replays():
     assert summary["admission_shape_sufficient"] is True
     assert all(row["provenance"] == "real" for row in final)
     assert all("call_id" not in row for row in final)
+
+
+def test_admission_provenance_binds_evaluator_bytes_and_decision_contract():
+    provenance = admission_provenance(0.5)
+    evaluator = provenance["evaluator"]
+    contract = provenance["decision_contract"]
+
+    assert evaluator["module"] == "voxmaestro.reflex.admission"
+    assert evaluator["source_sha256"].startswith("sha256:")
+    assert len(evaluator["source_sha256"]) == 71
+    assert contract == {
+        "version": "voxmaestro.reflex.tool-needed.v1",
+        "key": "tool_needed",
+        "kind": "choice",
+        "options": ["tool_lookup", "no_tool_lookup"],
+        "source_field": "tool_needed_probability",
+        "source_boundary_ppm": 500_000,
+    }
+    encoded = json.dumps(contract, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    assert provenance["decision_contract_digest"] == (
+        f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+    )
+
+
+def test_decision_contract_digest_changes_with_evaluated_boundary():
+    assert (
+        admission_provenance(0.5)["decision_contract_digest"]
+        != admission_provenance(0.6)["decision_contract_digest"]
+    )
 
 
 def test_redact_reflex_text_removes_common_phone_and_email():

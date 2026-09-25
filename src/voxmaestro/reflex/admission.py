@@ -14,6 +14,7 @@ import math
 import platform
 import re
 import sys
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -38,6 +39,52 @@ _REQUIRED_KEYS = {
     "expected_language",
     "provenance",
 }
+
+REFLEX_TOOL_DECISION_VERSION = "voxmaestro.reflex.tool-needed.v1"
+_EVALUATOR_MODULE = "voxmaestro.reflex.admission"
+
+
+def _probability_ppm(value: float) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("probability must be numeric")
+    if not math.isfinite(value) or not 0.0 <= float(value) <= 1.0:
+        raise ValueError("probability must be finite and in [0, 1]")
+    return int(
+        (Decimal(str(value)) * Decimal("1000000")).quantize(
+            Decimal("1"),
+            rounding=ROUND_HALF_UP,
+        )
+    )
+
+
+def reflex_tool_decision_contract(tool_threshold: float) -> dict[str, Any]:
+    """Return the exact decision contract evaluated by the reflex admission gate."""
+
+    return {
+        "version": REFLEX_TOOL_DECISION_VERSION,
+        "key": "tool_needed",
+        "kind": "choice",
+        "options": ["tool_lookup", "no_tool_lookup"],
+        "source_field": "tool_needed_probability",
+        "source_boundary_ppm": _probability_ppm(tool_threshold),
+    }
+
+
+def _canonical_digest(payload: dict[str, Any]) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+
+
+def admission_provenance(tool_threshold: float) -> dict[str, Any]:
+    contract = reflex_tool_decision_contract(tool_threshold)
+    return {
+        "evaluator": {
+            "module": _EVALUATOR_MODULE,
+            "source_sha256": f"sha256:{hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}",
+        },
+        "decision_contract": contract,
+        "decision_contract_digest": _canonical_digest(contract),
+    }
 
 
 LEGACY_REFLEX_MAP: dict[str, tuple[str, bool]] = {
@@ -524,6 +571,7 @@ async def _run(args: argparse.Namespace) -> int:
             "authority": "EVIDENCE_ONLY_NOT_ROUTING_AUTHORITY",
             "checks": {"schema_enforcement_verified": False},
             "error": type(error).__name__,
+            **admission_provenance(args.tool_threshold),
         }
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(report, indent=2) + "\n")
@@ -540,6 +588,7 @@ async def _run(args: argparse.Namespace) -> int:
     )
     report["checks"]["schema_enforcement_verified"] = True
     report["model"]["schema_engine"] = args.schema_engine
+    report.update(admission_provenance(args.tool_threshold))
     if args.model_path is None:
         report["checks"]["model_identity_computed_from_artifact"] = False
         report["verdict"] = "BLOCKED"
