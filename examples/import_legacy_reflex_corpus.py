@@ -157,21 +157,33 @@ def main() -> int:
         print(json.dumps(summary, indent=2, sort_keys=True))
         return 2
 
-    review_rows = build_legacy_provenance_review(
-        staged,
-        prior_classifications=prior_classifications,
-    )
-    classifications = {
-        row["source_digest"]: row["classification"]
-        for row in review_rows
-    }
-    final, summary = finalize_legacy_replay_rows(
-        staged,
-        assert_replays_are_real_calls=args.assert_replays_are_real_calls,
-        provenance_by_digest=(
-            None if args.assert_replays_are_real_calls else classifications
-        ),
-    )
+    try:
+        review_rows = build_legacy_provenance_review(
+            staged,
+            prior_classifications=prior_classifications,
+        )
+        classifications = {
+            row["source_digest"]: row["classification"]
+            for row in review_rows
+        }
+        final, summary = finalize_legacy_replay_rows(
+            staged,
+            assert_replays_are_real_calls=args.assert_replays_are_real_calls,
+            provenance_by_digest=(
+                None if args.assert_replays_are_real_calls else classifications
+            ),
+        )
+    except ValueError as error:
+        summary = {
+            "verdict": "TEST_INVALID",
+            "error": str(error),
+            "input_dir": str(args.input_dir.expanduser()),
+            "provenance_review_path": str(provenance_path),
+        }
+        out_dir.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        return 2
     summary.update(
         {
             "verdict": (
