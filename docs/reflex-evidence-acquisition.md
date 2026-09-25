@@ -49,7 +49,7 @@ The importer creates:
 Each row contains:
 
 - `source_digest` — opaque stable identifier derived from the source row;
-- a redacted transcript preview;
+- a email/phone-redacted transcript preview;
 - the mapped intent/tool-needed label;
 - `classification` — `real`, `demo`, or `unreviewed`.
 
@@ -120,7 +120,7 @@ The acquisition directory contains:
 - `acquisition-state.json` — transcript-free state and counts;
 - `corpus/legacy-reflex-summary.json` — local corpus summary;
 - `corpus/legacy-reflex-staging.jsonl` — local staging records;
-- `corpus/legacy-reflex-provenance-review.jsonl` — local redacted selective
+- `corpus/legacy-reflex-provenance-review.jsonl` — local email/phone-redacted selective
   provenance review;
 - `corpus/reflex-real-turns.jsonl` — emitted only from eligible rows explicitly
   classified `real` (or from a valid homogeneous all-real assertion);
