@@ -29,6 +29,7 @@ from voxmaestro.reflex.admission import (
 CANDIDATE_MODEL_ID = "mlx-community/Qwen3-0.6B-4bit"
 CANDIDATE_WEIGHT_SHA256 = "392e8d466d56100ada00eb82031fb854297fc9e389b7d303eba3af114e87bce2"
 DEFAULT_OUT = Path("evidence/reflex-admission/VM-REFLEX-001")
+_RUNNER_MODULE = "examples.run_reflex_physical_admission"
 
 
 def _sha256(path: Path) -> str:
@@ -53,6 +54,13 @@ def _json(path: Path) -> dict[str, Any]:
 def _write(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
+def _runner_provenance() -> dict[str, str]:
+    return {
+        "module": _RUNNER_MODULE,
+        "source_sha256": f"sha256:{hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}",
+    }
 
 
 def _preflight(corpus: Path, model_path: Path) -> dict[str, Any]:
@@ -160,6 +168,7 @@ def main() -> int:
             "authority": "EVIDENCE_ONLY_NOT_ROUTING_AUTHORITY",
             "stage": "preflight",
             "error": f"{type(error).__name__}: {error}",
+            "runner": _runner_provenance(),
         }
         _write(final_path, report)
         print(json.dumps({"evidence": str(final_path), "verdict": report["verdict"]}))
@@ -172,6 +181,7 @@ def main() -> int:
             "authority": "EVIDENCE_ONLY_NOT_ROUTING_AUTHORITY",
             "stage": "preflight",
             "preflight": preflight,
+            "runner": _runner_provenance(),
         }
         _write(final_path, report)
         print(json.dumps({"evidence": str(final_path), "verdict": report["verdict"]}))
@@ -285,6 +295,7 @@ def main() -> int:
         decision.update(
             {
                 "program": "VM-REFLEX-001",
+                "runner": _runner_provenance(),
                 "candidate_model_id": CANDIDATE_MODEL_ID,
                 "candidate_weight_sha256": CANDIDATE_WEIGHT_SHA256,
                 "preflight": preflight,
@@ -328,6 +339,7 @@ def main() -> int:
             "stage": "orchestration",
             "error": f"{type(error).__name__}: {error}",
             "preflight": preflight,
+            "runner": _runner_provenance(),
         }
         _write(final_path, report)
         print(json.dumps({"evidence": str(final_path), "verdict": report["verdict"]}))
