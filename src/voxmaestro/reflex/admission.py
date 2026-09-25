@@ -206,12 +206,69 @@ def stage_legacy_training_row(
     }
 
 
+def build_legacy_provenance_review(
+    staged_rows: list[dict[str, Any]],
+    *,
+    prior_classifications: Mapping[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Build a local review manifest without exposing legacy call ids.
+
+    Only unique ready_replay rows are reviewable for automatic admission.
+    The source_digest is already derived from the original call id + content,
+    but the call id itself is never copied into this artifact.
+    """
+
+    classifications = dict(prior_classifications or {})
+    allowed = {"real", "demo", "unreviewed"}
+    invalid = {value for value in classifications.values() if value not in allowed}
+    if invalid:
+        raise ValueError(f"invalid provenance classifications: {sorted(invalid)}")
+
+    review: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in staged_rows:
+        if row.get("status") != "ready_replay":
+            continue
+        digest = str(row["source_digest"])
+        if digest in seen:
+            continue
+        seen.add(digest)
+        review.append(
+            {
+                "source_digest": digest,
+                "classification": classifications.get(digest, "unreviewed"),
+                "transcript_preview": row["transcript"],
+                "legacy_intent": row["legacy_intent"],
+                "proposed_intent": row["proposed_intent"],
+                "proposed_tool_needed": bool(row["proposed_tool_needed"]),
+                "expected_language": row["expected_language"],
+            }
+        )
+    return review
+
+
 def finalize_legacy_replay_rows(
     staged_rows: list[dict[str, Any]],
     *,
-    assert_replays_are_real_calls: bool,
+    assert_replays_are_real_calls: bool = False,
+    provenance_by_digest: Mapping[str, str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Emit admission rows only from explicit, ground-truth replay candidates."""
+    """Emit admission rows only from explicitly admitted replay candidates.
+
+    For mixed real/demo data, pass provenance_by_digest and mark each eligible
+    source digest real, demo, or unreviewed. The legacy all-real assertion
+    remains available for genuinely homogeneous datasets but cannot be combined
+    with a selective manifest.
+    """
+
+    if assert_replays_are_real_calls and provenance_by_digest is not None:
+        raise ValueError("all-real assertion and selective provenance are mutually exclusive")
+
+    classifications = dict(provenance_by_digest or {})
+    allowed = {"real", "demo", "unreviewed"}
+    invalid = {value for value in classifications.values() if value not in allowed}
+    if invalid:
+        raise ValueError(f"invalid provenance classifications: {sorted(invalid)}")
 
     ready = [row for row in staged_rows if row.get("status") == "ready_replay"]
     unique_ready: list[dict[str, Any]] = []
@@ -225,30 +282,61 @@ def finalize_legacy_replay_rows(
         seen_source_digests.add(digest)
         unique_ready.append(row)
 
-    final: list[dict[str, Any]] = []
+    unknown_manifest_digests = sorted(set(classifications) - seen_source_digests)
+    if unknown_manifest_digests:
+        raise ValueError("provenance manifest contains unknown source_digest values")
+
+    selected_real: list[dict[str, Any]] = []
     if assert_replays_are_real_calls:
-        for index, row in enumerate(unique_ready, start=1):
-            final.append(
-                {
-                    "id": f"legacy-replay-{index:05d}-{row['source_digest'][:12]}",
-                    "transcript": row["transcript"],
-                    "expected_intent": row["proposed_intent"],
-                    "expected_tool_needed": bool(row["proposed_tool_needed"]),
-                    "expected_language": row["expected_language"],
-                    "provenance": "real",
-                    "notes": (
-                        "legacy_source=bland_replay;"
-                        f"legacy_intent={row['legacy_intent']};"
-                        f"language_source={row['language_source']};"
-                        "direct_contact_pii_redacted=true"
-                    ),
-                }
-            )
+        selected_real = list(unique_ready)
+        provenance_mode = "all-real-assertion"
+    elif provenance_by_digest is not None:
+        selected_real = [
+            row
+            for row in unique_ready
+            if classifications.get(str(row["source_digest"]), "unreviewed") == "real"
+        ]
+        provenance_mode = "selective-manifest"
+    else:
+        provenance_mode = "none"
+
+    final: list[dict[str, Any]] = []
+    for index, row in enumerate(selected_real, start=1):
+        final.append(
+            {
+                "id": f"legacy-replay-{index:05d}-{row['source_digest'][:12]}",
+                "transcript": row["transcript"],
+                "expected_intent": row["proposed_intent"],
+                "expected_tool_needed": bool(row["proposed_tool_needed"]),
+                "expected_language": row["expected_language"],
+                "provenance": "real",
+                "notes": (
+                    "legacy_source=bland_replay;"
+                    f"legacy_intent={row['legacy_intent']};"
+                    f"language_source={row['language_source']};"
+                    f"provenance_mode={provenance_mode};"
+                    "direct_contact_pii_redacted=true"
+                ),
+            }
+        )
 
     unique_ready_positive_count = sum(
         1 for row in unique_ready if row["proposed_tool_needed"]
     )
     positive_count = sum(1 for row in final if row["expected_tool_needed"])
+    marked_real = sum(
+        classifications.get(str(row["source_digest"])) == "real"
+        for row in unique_ready
+    )
+    marked_demo = sum(
+        classifications.get(str(row["source_digest"])) == "demo"
+        for row in unique_ready
+    )
+    unreviewed = sum(
+        classifications.get(str(row["source_digest"]), "unreviewed") == "unreviewed"
+        for row in unique_ready
+    )
+
     status_counts: dict[str, int] = {}
     for row in staged_rows:
         status = str(row.get("status") or "unknown")
@@ -257,11 +345,15 @@ def finalize_legacy_replay_rows(
     summary = {
         "staged_rows": len(staged_rows),
         "status_counts": status_counts,
+        "provenance_mode": provenance_mode,
         "real_call_assertion": assert_replays_are_real_calls,
         "ready_replay_rows": len(ready),
         "duplicate_ready_rows_ignored": duplicate_ready_rows,
         "unique_ready_replay_rows": len(unique_ready),
         "unique_ready_tool_positive_rows": unique_ready_positive_count,
+        "marked_real_rows": len(unique_ready) if assert_replays_are_real_calls else marked_real,
+        "marked_demo_rows": marked_demo,
+        "unreviewed_ready_rows": 0 if assert_replays_are_real_calls else unreviewed,
         "final_rows": len(final),
         "final_tool_positive_rows": positive_count,
         "admission_shape_sufficient": len(final) >= 30 and positive_count >= 59,
