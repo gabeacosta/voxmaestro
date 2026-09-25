@@ -133,3 +133,28 @@ seal. See [jev-live-001.md](jev-live-001.md).
 The remaining step is physical live execution on the Mac Mini with both
 credentials present. Promotion study comes only after that evidence exists.
 Rejection or disagreement with evidence is a successful experimental outcome.
+
+
+## Observability evidence contract
+
+The shadow observer preserves the decision evidence required by higher-level
+observability consumers without storing plaintext state:
+
+- selected typed value;
+- Choice/Score probability distribution when the provider returns it;
+- Jev confidence where defined;
+- requested and provider-resolved model identity;
+- input/output token counts;
+- provider-reported decision cost when available;
+- total and per-verdict latency;
+- observation timestamp;
+- request hash and decision trace.
+
+Probability distributions are validated before persistence when present. A
+malformed distribution closes the batch instead of being emitted as trustworthy
+evidence. Older/provider responses that do not include a distribution remain
+valid but surface the distribution as unavailable; confidence is never expanded
+into invented per-option probabilities.
+
+This observer is telemetry/evidence input only. It grants no routing, tool,
+state-transition, repair, or effect authority.
