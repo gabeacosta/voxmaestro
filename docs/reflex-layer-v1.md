@@ -112,6 +112,13 @@ A PASS currently requires all of the following:
 Synthetic rows are ignored for admission evidence. The report stores per-turn
 digests and labels but does not copy transcripts into the evidence output.
 
+The CLI-written admission artifact also self-identifies the exact evaluator source
+bytes and the exact tool-needed decision contract. The contract digest includes
+the evaluated probability boundary, so an admission run at one boundary cannot
+silently qualify a different boundary. The physical-admission wrapper already
+hashes the complete model-admission artifact, making that provenance transitive
+into the physical witness.
+
 `PASS_REFLEX_MODEL_ADMISSION` means the model cleared this evidence gate. It
 does not grant routing or tool authority.
 
