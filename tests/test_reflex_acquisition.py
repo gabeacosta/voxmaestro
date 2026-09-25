@@ -207,3 +207,79 @@ def test_one_shot_stops_at_provenance_before_model_preflight(tmp_path):
     assert state["counts"]["unique_ready_replay_rows"] == 59
     assert state["counts"]["unique_ready_tool_positive_rows"] == 59
     assert not (out / "physical" / "physical-preflight.json").exists()
+
+
+def test_one_shot_selective_manifest_excludes_demo_and_advances_to_preflight(tmp_path):
+    repo_root = Path(__file__).parents[1]
+    training = tmp_path / "training"
+    training.mkdir()
+    source = training / "examples_fixture.jsonl"
+    rows = [
+        {
+            "text": f"Book me slot {index}",
+            "intent": "book_appointment",
+            "source": "bland_replay",
+            "call_id": f"call-{index}",
+            "confidence": 1.0,
+        }
+        for index in range(60)
+    ]
+    source.write_text("".join(json.dumps(row) + "\n" for row in rows))
+
+    out = tmp_path / "out"
+    base_command = [
+        sys.executable,
+        "examples/run_reflex_evidence_acquisition.py",
+        "--input-dir",
+        str(training),
+        "--default-language",
+        "en",
+        "--model-path",
+        str(tmp_path / "model-does-not-exist"),
+        "--out",
+        str(out),
+    ]
+
+    first = subprocess.run(
+        base_command,
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert first.returncode == 2
+
+    review_path = out / "corpus" / "legacy-reflex-provenance-review.jsonl"
+    review = [json.loads(line) for line in review_path.read_text().splitlines() if line.strip()]
+    assert len(review) == 60
+    for index, row in enumerate(review):
+        row["classification"] = "real" if index < 59 else "demo"
+        assert "call_id" not in row
+    review_path.write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in review)
+    )
+
+    second = subprocess.run(
+        base_command,
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert second.returncode == 2
+
+    state = json.loads((out / "acquisition-state.json").read_text())
+    assert state["state"] == BLOCKED_RUNTIME_PREREQUISITES
+    assert state["counts"]["marked_real_rows"] == 59
+    assert state["counts"]["unreviewed_ready_rows"] == 0
+    assert state["counts"]["final_rows"] == 59
+    assert state["counts"]["final_tool_positive_rows"] == 59
+
+    corpus = [
+        json.loads(line)
+        for line in (out / "corpus" / "reflex-real-turns.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+    assert len(corpus) == 59
+    assert all(row["provenance"] == "real" for row in corpus)
+    assert (out / "physical" / "physical-preflight.json").exists()
