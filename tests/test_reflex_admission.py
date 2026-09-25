@@ -8,6 +8,7 @@ import pytest
 from voxmaestro.reflex.admission import (
     admission_provenance,
     adjudicate_physical,
+    build_legacy_provenance_review,
     evaluate_rows,
     finalize_legacy_replay_rows,
     redact_reflex_text,
@@ -332,6 +333,66 @@ def test_finalize_can_meet_shape_gate_from_ground_truth_tool_replays():
     assert summary["admission_shape_sufficient"] is True
     assert all(row["provenance"] == "real" for row in final)
     assert all("call_id" not in row for row in final)
+
+
+def test_selective_provenance_emits_only_rows_marked_real():
+    staged = [
+        stage_legacy_training_row(
+            _legacy_row(call_id=f"call-{index}", text=f"Book me slot {index}"),
+            default_language="en",
+        )
+        for index in range(3)
+    ]
+    review = build_legacy_provenance_review(staged)
+    classifications = {
+        review[0]["source_digest"]: "real",
+        review[1]["source_digest"]: "demo",
+        review[2]["source_digest"]: "unreviewed",
+    }
+
+    final, summary = finalize_legacy_replay_rows(
+        staged,
+        provenance_by_digest=classifications,
+    )
+
+    assert len(final) == 1
+    assert final[0]["provenance"] == "real"
+    assert summary["provenance_mode"] == "selective-manifest"
+    assert summary["marked_real_rows"] == 1
+    assert summary["marked_demo_rows"] == 1
+    assert summary["unreviewed_ready_rows"] == 1
+
+
+def test_provenance_review_preserves_prior_classification_by_digest():
+    staged = [
+        stage_legacy_training_row(_legacy_row(call_id="real-call"), default_language="en"),
+        stage_legacy_training_row(_legacy_row(call_id="demo-call"), default_language="en"),
+    ]
+    initial = build_legacy_provenance_review(staged)
+    prior = {
+        initial[0]["source_digest"]: "real",
+        initial[1]["source_digest"]: "demo",
+    }
+
+    refreshed = build_legacy_provenance_review(
+        list(reversed(staged)),
+        prior_classifications=prior,
+    )
+
+    assert {row["source_digest"]: row["classification"] for row in refreshed} == prior
+    assert all("call_id" not in row for row in refreshed)
+
+
+def test_selective_provenance_rejects_unknown_stale_digest():
+    staged = [
+        stage_legacy_training_row(_legacy_row(), default_language="en"),
+    ]
+
+    with pytest.raises(ValueError, match="unknown source_digest"):
+        finalize_legacy_replay_rows(
+            staged,
+            provenance_by_digest={"f" * 64: "real"},
+        )
 
 
 def test_admission_provenance_binds_evaluator_bytes_and_decision_contract():
