@@ -94,14 +94,17 @@ This is a prerequisite failure, not a failed model-admission result.
 The corpus and physical prerequisites are ready. No model/voice admission run
 has occurred yet.
 
-To execute the bounded physical run:
+To execute the bounded physical run after the selective manifest admits enough
+real rows:
 
 ```bash
 python examples/run_reflex_evidence_acquisition.py \
   --model-path /path/to/Qwen3-0.6B-4bit \
-  --assert-replays-are-real-calls \
   --execute
 ```
+
+For a genuinely homogeneous all-real dataset, the blanket assertion flag may
+still be added explicitly.
 
 ### PASS_REFLEX_PHYSICAL_ADMISSION
 
