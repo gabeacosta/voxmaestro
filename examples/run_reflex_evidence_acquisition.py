@@ -81,8 +81,9 @@ def main() -> int:
     if args.assert_replays_are_real_calls:
         import_command.append("--assert-replays-are-real-calls")
 
-    _run(import_command)
     summary_path = corpus_out / "legacy-reflex-summary.json"
+    summary_path.unlink(missing_ok=True)
+    _run(import_command)
     if not summary_path.exists():
         state = {
             "state": "TEST_INVALID",
@@ -110,8 +111,9 @@ def main() -> int:
             str(physical_out),
             "--preflight-only",
         ]
-        _run(preflight_command)
         preflight_path = physical_out / "physical-preflight.json"
+        preflight_path.unlink(missing_ok=True)
+        _run(preflight_command)
         if preflight_path.exists():
             preflight = _json(preflight_path)
 
@@ -130,8 +132,9 @@ def main() -> int:
                 "--out",
                 str(physical_out),
             ]
-            _run(physical_command)
             physical_path = physical_out / "physical-admission.json"
+            physical_path.unlink(missing_ok=True)
+            _run(physical_command)
             if physical_path.exists():
                 physical = _json(physical_path)
 
