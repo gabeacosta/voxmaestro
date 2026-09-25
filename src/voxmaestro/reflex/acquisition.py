@@ -7,6 +7,7 @@ from typing import Any
 
 BLOCKED_INSUFFICIENT_REAL_LABELS = "BLOCKED_INSUFFICIENT_REAL_LABELS"
 BLOCKED_OPERATOR_PROVENANCE_ASSERTION = "BLOCKED_OPERATOR_PROVENANCE_ASSERTION"
+BLOCKED_PROVENANCE_CLASSIFICATION = "BLOCKED_PROVENANCE_CLASSIFICATION"
 BLOCKED_RUNTIME_PREREQUISITES = "BLOCKED_RUNTIME_PREREQUISITES"
 BLOCKED_PHYSICAL_ADMISSION = "BLOCKED_PHYSICAL_ADMISSION"
 READY_FOR_PHYSICAL_ADMISSION = "READY_FOR_PHYSICAL_ADMISSION"
@@ -58,20 +59,31 @@ def classify_acquisition(
         corpus_summary.get("final_tool_positive_rows"),
         "final_tool_positive_rows",
     )
+    unreviewed = _integer(
+        corpus_summary.get(
+            "unreviewed_ready_rows",
+            0 if assertion else unique_ready,
+        ),
+        "unreviewed_ready_rows",
+    )
+    marked_real = _integer(
+        corpus_summary.get(
+            "marked_real_rows",
+            final_rows,
+        ),
+        "marked_real_rows",
+    )
 
     counts = {
         "unique_ready_replay_rows": unique_ready,
         "unique_ready_tool_positive_rows": unique_positive,
+        "marked_real_rows": marked_real,
+        "unreviewed_ready_rows": unreviewed,
         "final_rows": final_rows,
         "final_tool_positive_rows": final_positive,
     }
 
-    if not assertion:
-        if unique_ready >= 30 and unique_positive >= 59:
-            return {
-                "state": BLOCKED_OPERATOR_PROVENANCE_ASSERTION,
-                "counts": counts,
-            }
+    if unique_ready < 30 or unique_positive < 59:
         return {
             "state": BLOCKED_INSUFFICIENT_REAL_LABELS,
             "counts": counts,
@@ -82,6 +94,11 @@ def classify_acquisition(
         or final_rows < 30
         or final_positive < 59
     ):
+        if unreviewed > 0:
+            return {
+                "state": BLOCKED_PROVENANCE_CLASSIFICATION,
+                "counts": counts,
+            }
         return {
             "state": BLOCKED_INSUFFICIENT_REAL_LABELS,
             "counts": counts,
