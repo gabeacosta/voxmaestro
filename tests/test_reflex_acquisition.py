@@ -1,3 +1,8 @@
+import json
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 
 from voxmaestro.reflex.acquisition import (
@@ -98,3 +103,48 @@ def test_bad_summary_shape_is_rejected():
 
     with pytest.raises(AcquisitionStateError):
         classify_acquisition(summary)
+
+
+def test_one_shot_stops_at_provenance_before_model_preflight(tmp_path):
+    repo_root = Path(__file__).parents[1]
+    training = tmp_path / "training"
+    training.mkdir()
+    source = training / "examples_fixture.jsonl"
+    rows = [
+        {
+            "text": f"Book me slot {index}",
+            "intent": "book_appointment",
+            "source": "bland_replay",
+            "call_id": f"call-{index}",
+            "confidence": 1.0,
+        }
+        for index in range(59)
+    ]
+    source.write_text("".join(json.dumps(row) + "\n" for row in rows))
+
+    out = tmp_path / "out"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "examples/run_reflex_evidence_acquisition.py",
+            "--input-dir",
+            str(training),
+            "--default-language",
+            "en",
+            "--model-path",
+            str(tmp_path / "model-does-not-exist"),
+            "--out",
+            str(out),
+        ],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    state = json.loads((out / "acquisition-state.json").read_text())
+    assert state["state"] == BLOCKED_OPERATOR_PROVENANCE_ASSERTION
+    assert state["counts"]["unique_ready_replay_rows"] == 59
+    assert state["counts"]["unique_ready_tool_positive_rows"] == 59
+    assert not (out / "physical" / "physical-preflight.json").exists()
