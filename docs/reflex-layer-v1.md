@@ -157,8 +157,11 @@ python examples/run_reflex_physical_admission.py \
 It starts the pinned local model server, loads the real Pocket TTS and
 faster-whisper acoustic witness, waits until that witness is resident and ready,
 then runs model admission while the voice workload remains alive. The top-level
-result is `TEST_INVALID` if the witness ends before the reflex benchmark,
-lacks acoustic ASR evidence, or does not itself qualify.
+physical artifact also records the SHA-256 of the exact physical-runner source
+bytes, so a downstream verifier can require an independently trusted runner
+digest rather than trusting the report's self-description. The top-level result
+is `TEST_INVALID` if the witness ends before the reflex benchmark, lacks
+acoustic ASR evidence, or does not itself qualify.
 
 The runner refuses to create the model download or real-turn corpus. Those are
 inputs, not evidence the benchmark is allowed to manufacture.
