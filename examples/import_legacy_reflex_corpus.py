@@ -145,6 +145,13 @@ def main() -> int:
 
     try:
         prior_classifications = _load_provenance_review(provenance_path)
+        if (
+            args.assert_replays_are_real_calls
+            and "demo" in prior_classifications.values()
+        ):
+            raise ValueError(
+                "blanket real-call assertion conflicts with existing demo classifications"
+            )
     except ValueError as error:
         summary = {
             "verdict": "TEST_INVALID",
