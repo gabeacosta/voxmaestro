@@ -64,6 +64,7 @@ class JevVerdict:
     kind: str
     value: Any
     confidence: Optional[float]
+    probabilities: Optional[tuple[tuple[str, float], ...]]
     latency_ms: float
     ok: bool
 
@@ -72,6 +73,7 @@ class JevVerdict:
 class ResponseUsage:
     input_tokens: Optional[int]
     output_tokens: Optional[int]
+    cost_usd: Optional[float]
 
 
 @dataclass(frozen=True)
@@ -103,6 +105,7 @@ def make_jsonl_observer(path: str) -> ShadowObserver:
                 else {
                     "input_tokens": observation.usage.input_tokens,
                     "output_tokens": observation.usage.output_tokens,
+                    "cost_usd": observation.usage.cost_usd,
                 }
             ),
             "ok": observation.ok,
@@ -114,11 +117,15 @@ def make_jsonl_observer(path: str) -> ShadowObserver:
                     "kind": v.kind,
                     "value": v.value,
                     "confidence": v.confidence,
+                    "probabilities": (
+                        None if v.probabilities is None else dict(v.probabilities)
+                    ),
                     "latency_ms": round(v.latency_ms, 2),
                 }
                 for v in observation.verdicts
             ],
         }
+        record["observed_at_unix_ms"] = int(time.time() * 1000)
         with open(path, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, sort_keys=True) + "\n")
     return observe
@@ -316,9 +323,17 @@ class JevReflexBackend:
         if not isinstance(raw_usage, Mapping):
             return returned_model, None
         try:
+            raw_cost = raw_usage.get("cost")
+            if raw_cost is None:
+                raw_cost = raw_usage.get("cost_usd")
             usage = ResponseUsage(
                 input_tokens=_nonnegative_int_or_none(raw_usage.get("input_tokens")),
                 output_tokens=_nonnegative_int_or_none(raw_usage.get("output_tokens")),
+                cost_usd=(
+                    None
+                    if raw_cost is None
+                    else _finite_number(raw_cost, minimum=0.0, maximum=1_000_000_000.0)
+                ),
             )
         except JevProtocolError:
             usage = None
@@ -347,20 +362,66 @@ class JevReflexBackend:
             if value not in question.options:
                 raise JevProtocolError(f"choice_out_of_contract:{question.key}")
             confidence = _finite_number(answer.get("confidence"), minimum=0.0, maximum=1.0)
+            probabilities = self._decode_probabilities(
+                answer, tuple(str(option) for option in question.options), question.key
+            )
         elif question.kind == QUESTION_SCORE:
             value = _finite_number(answer.get("score"), minimum=0.0, maximum=float(len(question.levels) - 1))
             confidence = _finite_number(answer.get("confidence"), minimum=0.0, maximum=1.0)
+            probabilities = self._decode_probabilities(
+                answer, tuple(str(index) for index in range(len(question.levels))), question.key
+            )
         elif question.kind == QUESTION_NOUL:
             value = _finite_number(answer.get("noul"), minimum=0.0, maximum=1.0)
             confidence = None
+            probabilities = None
         else:
             raise JevProtocolError(f"unsupported_question_kind:{question.kind}")
-        return JevVerdict(key=question.key, kind=question.kind, value=value,
-                          confidence=confidence, latency_ms=batch_latency_ms, ok=True)
+        return JevVerdict(
+            key=question.key,
+            kind=question.kind,
+            value=value,
+            confidence=confidence,
+            probabilities=probabilities,
+            latency_ms=batch_latency_ms,
+            ok=True,
+        )
+
+    def _decode_probabilities(
+        self,
+        answer: Mapping[str, Any],
+        expected_keys: tuple[str, ...],
+        question_key: str,
+    ) -> Optional[tuple[tuple[str, float], ...]]:
+        raw = answer.get("probabilities")
+        if raw is None:
+            return None
+        if not isinstance(raw, Mapping):
+            raise JevProtocolError(f"probabilities_not_mapping:{question_key}")
+        if set(raw.keys()) != set(expected_keys):
+            raise JevProtocolError(f"probability_key_mismatch:{question_key}")
+        decoded = tuple(
+            (
+                key,
+                _finite_number(raw[key], minimum=0.0, maximum=1.0),
+            )
+            for key in expected_keys
+        )
+        total = sum(value for _, value in decoded)
+        if abs(total - 1.0) > 0.001:
+            raise JevProtocolError(f"probabilities_do_not_sum_to_one:{question_key}")
+        return decoded
 
     def _closed_verdict(self, question: JevQuestion, latency_ms: float) -> JevVerdict:
-        return JevVerdict(key=question.key, kind=question.kind, value=None,
-                          confidence=None, latency_ms=latency_ms, ok=False)
+        return JevVerdict(
+            key=question.key,
+            kind=question.kind,
+            value=None,
+            confidence=None,
+            probabilities=None,
+            latency_ms=latency_ms,
+            ok=False,
+        )
 
     def _persist(self, observation: ShadowObservation) -> bool:
         try:
