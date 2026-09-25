@@ -245,6 +245,9 @@ def finalize_legacy_replay_rows(
                 }
             )
 
+    unique_ready_positive_count = sum(
+        1 for row in unique_ready if row["proposed_tool_needed"]
+    )
     positive_count = sum(1 for row in final if row["expected_tool_needed"])
     status_counts: dict[str, int] = {}
     for row in staged_rows:
@@ -258,6 +261,7 @@ def finalize_legacy_replay_rows(
         "ready_replay_rows": len(ready),
         "duplicate_ready_rows_ignored": duplicate_ready_rows,
         "unique_ready_replay_rows": len(unique_ready),
+        "unique_ready_tool_positive_rows": unique_ready_positive_count,
         "final_rows": len(final),
         "final_tool_positive_rows": positive_count,
         "admission_shape_sufficient": len(final) >= 30 and positive_count >= 59,

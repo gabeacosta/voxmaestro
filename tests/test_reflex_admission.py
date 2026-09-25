@@ -327,6 +327,7 @@ def test_finalize_can_meet_shape_gate_from_ground_truth_tool_replays():
     )
 
     assert len(final) == 59
+    assert summary["unique_ready_tool_positive_rows"] == 59
     assert summary["final_tool_positive_rows"] == 59
     assert summary["admission_shape_sufficient"] is True
     assert all(row["provenance"] == "real" for row in final)
@@ -394,4 +395,5 @@ def test_finalize_deduplicates_same_harvested_replay():
     assert summary["ready_replay_rows"] == 100
     assert summary["duplicate_ready_rows_ignored"] == 99
     assert summary["unique_ready_replay_rows"] == 1
+    assert summary["unique_ready_tool_positive_rows"] == 1
     assert summary["admission_shape_sufficient"] is False
