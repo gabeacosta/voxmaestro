@@ -14,6 +14,7 @@ import math
 import platform
 import re
 import sys
+from collections.abc import Mapping
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any, Iterable
