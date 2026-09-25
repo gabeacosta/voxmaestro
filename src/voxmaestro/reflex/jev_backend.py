@@ -64,16 +64,16 @@ class JevVerdict:
     kind: str
     value: Any
     confidence: Optional[float]
-    probabilities: Optional[tuple[tuple[str, float], ...]]
     latency_ms: float
     ok: bool
+    probabilities: Optional[tuple[tuple[str, float], ...]] = None
 
 
 @dataclass(frozen=True)
 class ResponseUsage:
     input_tokens: Optional[int]
     output_tokens: Optional[int]
-    cost_usd: Optional[float]
+    cost_usd: Optional[float] = None
 
 
 @dataclass(frozen=True)
