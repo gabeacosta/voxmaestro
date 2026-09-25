@@ -38,11 +38,11 @@ def classify_acquisition(
 
     if not isinstance(corpus_summary, Mapping):
         raise AcquisitionStateError("corpus_summary must be a mapping")
-    if type(execute) is not bool:
+    if not isinstance(execute, bool):
         raise AcquisitionStateError("execute must be boolean")
 
     assertion = corpus_summary.get("real_call_assertion")
-    if type(assertion) is not bool:
+    if not isinstance(assertion, bool):
         raise AcquisitionStateError("real_call_assertion must be boolean")
 
     unique_ready = _integer(
