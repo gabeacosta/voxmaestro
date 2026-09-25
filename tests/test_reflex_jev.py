@@ -135,6 +135,70 @@ def test_valid_jev_primitives_preserve_semantics(trace, question, answer, expect
     assert observer.events[0].model == PINNED_MODEL
 
 
+def test_choice_probabilities_and_usage_cost_are_preserved(trace, choice_question):
+    observer = CaptureObserver()
+    transport = FakeTransport(
+        valid_body(
+            answers={
+                "intent": {
+                    "type": "choice",
+                    "choice": "schedule",
+                    "probabilities": {
+                        "schedule": 0.84,
+                        "faq": 0.11,
+                        "other": 0.05,
+                    },
+                    "confidence": 0.72,
+                }
+            },
+            usage={
+                "input_tokens": 101,
+                "output_tokens": 9,
+                "cost": 0.000014994,
+            },
+        )
+    )
+    backend = backend_for(transport, observer)
+
+    verdict = backend.decide(request_for(trace, choice_question))[0]
+
+    assert verdict.ok is True
+    assert verdict.value == "schedule"
+    assert verdict.probabilities == (
+        ("schedule", 0.84),
+        ("faq", 0.11),
+        ("other", 0.05),
+    )
+    assert observer.events[0].usage is not None
+    assert observer.events[0].usage.cost_usd == pytest.approx(0.000014994)
+
+
+def test_invalid_choice_probability_distribution_closes_batch(trace, choice_question):
+    observer = CaptureObserver()
+    transport = FakeTransport(
+        valid_body(
+            answers={
+                "intent": {
+                    "type": "choice",
+                    "choice": "schedule",
+                    "probabilities": {
+                        "schedule": 0.90,
+                        "faq": 0.20,
+                        "other": 0.10,
+                    },
+                    "confidence": 0.90,
+                }
+            }
+        )
+    )
+    backend = backend_for(transport, observer)
+
+    verdicts = backend.decide(request_for(trace, choice_question))
+
+    assert_closed(verdicts)
+    assert "probabilities_do_not_sum_to_one" in observer.events[0].error
+
+
 def test_missing_sibling_closes_entire_batch(trace, choice_question, noul_question):
     observer = CaptureObserver()
     transport = FakeTransport(valid_body(answers={
@@ -280,7 +344,25 @@ def test_digest_covers_encoded_questions_and_jsonl_excludes_state_plaintext(tmp_
     log_path = tmp_path / "jev-shadow.jsonl"
     secret_state = "PRIVATE-CUSTOMER-STATE-9f38a7"
     observer = make_jsonl_observer(str(log_path))
-    body = valid_body(answers={"intent": {"type": "choice", "choice": "schedule", "confidence": 0.91}})
+    body = valid_body(
+        answers={
+            "intent": {
+                "type": "choice",
+                "choice": "schedule",
+                "probabilities": {
+                    "schedule": 0.91,
+                    "faq": 0.06,
+                    "other": 0.03,
+                },
+                "confidence": 0.91,
+            }
+        },
+        usage={
+            "input_tokens": 101,
+            "output_tokens": 9,
+            "cost": 0.000014994,
+        },
+    )
     backend = backend_for(FakeTransport(body), observer)
     backend.decide(request_for(trace, choice_question, state=secret_state))
     changed_question = replace(choice_question, prompt="Select intent using the revised v4 semantic rule.")
@@ -291,6 +373,13 @@ def test_digest_covers_encoded_questions_and_jsonl_excludes_state_plaintext(tmp_
     records = [json.loads(line) for line in raw.splitlines() if line.strip()]
     assert len(records) == 2
     assert records[0]["request_hash"] != records[1]["request_hash"]
+    assert records[0]["verdicts"][0]["probabilities"] == {
+        "faq": 0.06,
+        "other": 0.03,
+        "schedule": 0.91,
+    }
+    assert records[0]["usage"]["cost_usd"] == pytest.approx(0.000014994)
+    assert isinstance(records[0]["observed_at_unix_ms"], int)
 
 
 @pytest.mark.parametrize("status", [301, 302, 303, 307, 308])
