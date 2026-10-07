@@ -78,8 +78,8 @@ async def test_wt_voice_trio_post_effect_ack_loss_not_definitive_failure():
     observed = await handoff.execute(ConversationContext(call_id="wt-ack-loss"))
 
     assert effects == ["wt-ack-loss"]  # real effect in the controlled fixture
-    # This assertion intentionally fails on the pinned baseline if
-    # the handoff handler collapses uncertainty into definitive failure.
+    # Red on the pinned baseline; green only after the native
+    # handoff contract stops converting uncertainty into definitive failure.
     assert observed["delivery"][0]["status"] == "unknown"
 
 
