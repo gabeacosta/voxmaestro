@@ -32,6 +32,10 @@ class RuntimeConfigurationError(RuntimeError):
     """Execution required an adapter that was not configured."""
 
 
+class ToolEffectBindingError(RuntimeError):
+    """Authoritative executor block: operation identity does not match effect meaning."""
+
+
 ToolExecutor = Callable[
     [str, Mapping[str, Any], Mapping[str, Any], ConversationContext], Awaitable[Any]
 ]
@@ -55,6 +59,7 @@ class RuntimeToolResult:
     latency_ms: float = 0
     simulated: bool = False
     uncertain: bool = False
+    blocked: bool = False
 
 
 class RuntimeToolBridge:
@@ -150,6 +155,16 @@ class RuntimeToolBridge:
                 False,
                 error=f"Timeout after {timeout_ms}ms",
                 latency_ms=(time.monotonic() - started_at) * 1000,
+            )
+        except ToolEffectBindingError as error:
+            context.phase = CallPhase.ACTIVE
+            logger.warning("[%s] Tool '%s' blocked by effect binding: %s", context.call_id, tool_name, error)
+            return RuntimeToolResult(
+                tool_name,
+                False,
+                error=str(error),
+                latency_ms=(time.monotonic() - started_at) * 1000,
+                blocked=True,
             )
         except Exception as error:  # External adapter boundary.
             context.phase = CallPhase.ACTIVE
@@ -482,9 +497,15 @@ class VoxMaestroRuntime:
                     "success": tool_result.success,
                     "simulated": tool_result.simulated,
                     "uncertain": tool_result.uncertain,
+                    "blocked": tool_result.blocked,
                 },
             )
-            if tool_result.uncertain:
+            if tool_result.blocked:
+                result["response_text"] = (
+                    "That action was blocked because its authorization does not match the requested effect."
+                )
+                should_handoff = False
+            elif tool_result.uncertain:
                 result["response_text"] = (
                     "I couldn't confirm whether that action completed."
                 )
