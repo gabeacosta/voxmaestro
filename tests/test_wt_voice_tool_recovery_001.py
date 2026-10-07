@@ -1,6 +1,6 @@
 """WT-VOICE-TOOL-RECOVERY-001 — stable effect identity across runtime restart.
 
-This is a source/runtime specimen, not a live Ceinit integration. VoxMaestro must
+This is a source/runtime specimen, not a live Ceinit integration. CI target: main. VoxMaestro must
 require and forward a stable operation identity; the synthetic Ceinit-shaped
 executor owns durable lookup, recovery, and dedupe.
 """
