@@ -82,6 +82,19 @@ class RuntimeToolBridge:
         if not tool:
             return RuntimeToolResult(tool_name, False, error=f"Unknown tool: {tool_name}")
 
+        operation_id_key = tool.get("operation_id_from_context")
+        if operation_id_key:
+            operation_id = context.metadata.get(operation_id_key)
+            if not isinstance(operation_id, str) or not operation_id.strip():
+                return RuntimeToolResult(
+                    tool_name,
+                    False,
+                    error=(
+                        f"Tool '{tool_name}' requires stable operation_id "
+                        f"from context metadata '{operation_id_key}'"
+                    ),
+                )
+
         context.phase = CallPhase.FILLER_PLAYING
         filler = tool.get("filler")
         if filler and on_filler:
@@ -174,6 +187,11 @@ class RuntimeToolBridge:
             key: context.metadata.get(key)
             for key in tool.get("params_from_context", [])
         }
+        operation_id_key = tool.get("operation_id_from_context")
+        if operation_id_key:
+            # Stable external identity is forwarded unchanged; the executor
+            # owns durable lookup, dedupe, and recovery semantics.
+            params["operation_id"] = context.metadata[operation_id_key]
         if self.executor:
             return await self.executor(tool_name, tool, params, context)
         if self.dry_run:
