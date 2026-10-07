@@ -116,6 +116,9 @@ class WebSessionAdapter:
         if event_type == "end":
             session = self._sessions.pop(session_id, None)
             if session is not None:
+                # Runtime closure is monotonic, but it does not cancel an effect
+                # that already crossed the external dispatch boundary.
+                session.call.close()
                 if session.audio is not None:
                     session.audio.flush()
                 if self.tts_backend is not None:
