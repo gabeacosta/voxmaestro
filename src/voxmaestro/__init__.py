@@ -13,6 +13,7 @@ from .conductor import (
 )
 from .runtime import (
     CallSession,
+    HandoffNoEffectError,
     RuntimeConfigurationError,
     RuntimeToolResult,
     VoxMaestroRuntime,
@@ -38,6 +39,7 @@ __all__ = [
     "StateMachine",
     "ToolBridge",
     "HandoffProtocol",
+    "HandoffNoEffectError",
     "RuntimeConfigurationError",
     "RuntimeToolResult",
     "CallPhase",
