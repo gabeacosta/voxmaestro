@@ -18,9 +18,10 @@ from voxmaestro import VoxMaestroRuntime
 from voxmaestro.runtime import RuntimeToolBridge
 
 
-def _config(timeout_ms: int = 25):
+def _config(timeout_ms: int = 25, cancellation_authority: str = "executor"):
     cfg = deepcopy(CONFIG)
     cfg["tools"]["check_availability"]["timeout_ms"] = timeout_ms
+    cfg["tools"]["check_availability"]["cancellation_authority"] = cancellation_authority
     return cfg
 
 
@@ -74,6 +75,7 @@ async def test_local_timeout_must_not_cancel_dispatched_executor():
     await asyncio.wait_for(finished.wait(), 1.0)
 
     assert result.success is False
+    assert result.uncertain is True
     assert cancelled_by_runtime is False
     assert ("timeout-cancel", "DISPATCH_STARTED") in journal
     assert ("timeout-cancel", "CANCELLED_BY_CALLER") not in journal
@@ -115,4 +117,28 @@ async def test_timeout_cannot_launch_fallback_handoff_as_second_effect():
 
     assert tool_effects[0] == ("timeout-fallback", "DISPATCH_STARTED")
     assert handoff_effects == []
+    assert result["tool_result"].uncertain is True
     assert result["action"] != "handoff"
+
+
+@pytest.mark.asyncio
+async def test_runtime_owned_timeout_still_cancels_executor():
+    """Default/runtime-owned work may still be cancelled to reclaim resources."""
+    cancelled = asyncio.Event()
+
+    async def runtime_owned_executor(name, tool, params, context):
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    cfg = _config(cancellation_authority="runtime")
+    bridge = RuntimeToolBridge(cfg, executor=runtime_owned_executor)
+    context = VoxMaestroRuntime(cfg).start_call("runtime-cancel").context
+
+    result = await bridge.execute("check_availability", context)
+
+    assert result.success is False
+    assert result.uncertain is False
+    assert cancelled.is_set()
