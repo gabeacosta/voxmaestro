@@ -185,3 +185,42 @@ async def test_effect_close_explicit_consumer_disconnect_does_not_cancel_effect(
     await asyncio.wait_for(completed.wait(), 2)
 
     assert calls == ["socket-drop"]
+
+
+@pytest.mark.asyncio
+async def test_effect_close_failed_inflight_tool_cannot_start_fallback_handoff():
+    """A tool failure after closing the browser must not launch a second effect."""
+    entered, release = asyncio.Event(), asyncio.Event()
+    original_effects, handoff_effects = [], []
+
+    async def tool_that_loses_ack(name, tool, params, context):
+        original_effects.append((context.call_id, name))
+        entered.set()
+        await release.wait()
+        raise TimeoutError("provider result unknown")
+
+    async def deliver_handoff(delivery, payload, context):
+        handoff_effects.append(context.call_id)
+        return {"receipt": "should-not-exist"}
+
+    runtime = VoxMaestroRuntime(
+        deepcopy(CONFIG),
+        tool_executor=tool_that_loses_ack,
+        handoff_executor=deliver_handoff,
+        intent_classifier=_tool_intent,
+    )
+    adapter = WebSessionAdapter(runtime, generation_adapter=generate)
+    await _begin_qualified(adapter, "closed-tool")
+    stream = adapter.iter_events(
+        {"type": "message", "sessionId": "closed-tool", "text": "Thursday"}
+    )
+    assert (await asyncio.wait_for(anext(stream), 2))["metadata"]["phase"] == "filler"
+    assert entered.is_set()
+
+    await collect(adapter, {"type": "end", "sessionId": "closed-tool"})
+    release.set()
+    trailing = [event async for event in stream]
+
+    assert trailing == []
+    assert original_effects == [("closed-tool", "check_availability")]
+    assert handoff_effects == []  # no second consequential dispatch after close
