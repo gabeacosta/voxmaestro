@@ -14,6 +14,7 @@ from .conductor import (
 from .runtime import (
     CallSession,
     RuntimeConfigurationError,
+    ToolEffectBindingError,
     RuntimeToolResult,
     VoxMaestroRuntime,
 )
@@ -39,6 +40,7 @@ __all__ = [
     "ToolBridge",
     "HandoffProtocol",
     "RuntimeConfigurationError",
+    "ToolEffectBindingError",
     "RuntimeToolResult",
     "CallPhase",
     "TransitionResult",
