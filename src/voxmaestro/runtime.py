@@ -32,6 +32,15 @@ class RuntimeConfigurationError(RuntimeError):
     """Execution required an adapter that was not configured."""
 
 
+class HandoffNoEffectError(RuntimeError):
+    """Adapter-attested rejection that definitively occurred before any effect.
+
+    Raise this only when the adapter has authoritative evidence that no
+    consequential effect occurred. Never infer no-effect from HTTP errors,
+    exception types, timeouts, or missing provider acknowledgments.
+    """
+
+
 ToolExecutor = Callable[
     [str, Mapping[str, Any], Mapping[str, Any], ConversationContext], Awaitable[Any]
 ]
@@ -196,9 +205,17 @@ class RuntimeHandoff:
                     receipts.append(
                         {"channel": channel, "status": "delivered", "result": result}
                     )
-                except Exception as error:  # External adapter boundary.
+                except HandoffNoEffectError as error:
+                    # This exception is an explicit no-effect assertion by the
+                    # adapter, not a deduction from a generic provider error.
                     receipts.append(
                         {"channel": channel, "status": "failed", "error": str(error)}
+                    )
+                except Exception as error:  # External adapter boundary.
+                    # The sink may have acted before its acknowledgment was lost.
+                    # No automatic retries: Ceinit owns effect reconciliation.
+                    receipts.append(
+                        {"channel": channel, "status": "unknown", "error": str(error)}
                     )
             elif self.dry_run:
                 receipts.append({"channel": channel, "status": "simulated"})
