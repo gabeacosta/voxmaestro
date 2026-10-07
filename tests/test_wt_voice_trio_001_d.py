@@ -6,12 +6,13 @@ repeated-scenario evaluation. No external frameworks or models imported.
 
 from __future__ import annotations
 
+import asyncio
 from copy import deepcopy
 
 import pytest
 
 from tests.test_runtime_truth import CONFIG
-from tests.test_web_session import _FakeBackend, _voice_for, collect, generate
+from tests.test_web_session import _FakeBackend, _HeldBackend, _voice_for, collect, generate
 from voxmaestro import VoxMaestroRuntime
 from voxmaestro.integrations.web_session import WebSessionAdapter
 
@@ -94,3 +95,47 @@ async def test_wt_d_unknown_handoff_must_not_claim_non_delivery():
     assert final["metadata"]["deliveryStatuses"] == ["unknown"]
     assert final["metadata"]["handoffDelivered"] is False
     assert final["text"] == "I couldn't confirm whether the handoff was delivered."
+
+
+@pytest.mark.asyncio
+async def test_wt_d_closed_generator_cannot_take_over_reused_session_id():
+    """A replaced session must not inherit a suspended greeting generator."""
+    backend = _FakeBackend()
+    adapter = WebSessionAdapter(
+        VoxMaestroRuntime(deepcopy(CONFIG)),
+        generation_adapter=generate,
+        tts_backend=backend,
+        voice_for=_voice_for,
+    )
+    stale_stream = adapter.iter_events({"type": "start", "sessionId": "same-id"})
+    assert (await anext(stale_stream))["type"] == "greeting"
+    await collect(adapter, {"type": "end", "sessionId": "same-id"})
+    fresh_events = await collect(adapter, {"type": "start", "sessionId": "same-id"})
+    assert [e["pcm"] for e in fresh_events if e["type"] == "audio"] == [b"a", b"b"]
+
+    stale_events = [event async for event in stale_stream]
+    assert not [e for e in stale_events if e["type"] == "audio"]
+    assert backend.opened == ["same-id", "same-id"]
+    assert backend.closed == ["same-id"]
+
+
+@pytest.mark.asyncio
+async def test_wt_d_end_during_synthesis_suppresses_post_close_audio():
+    """Teardown invalidates even audio that was already being generated."""
+    backend = _HeldBackend()
+    adapter = WebSessionAdapter(
+        VoxMaestroRuntime(deepcopy(CONFIG)),
+        generation_adapter=generate,
+        tts_backend=backend,
+        voice_for=_voice_for,
+    )
+    start_task = asyncio.create_task(
+        collect(adapter, {"type": "start", "sessionId": "mid-speech"})
+    )
+    assert await asyncio.wait_for(asyncio.to_thread(backend.started.wait), timeout=2.0)
+    await collect(adapter, {"type": "end", "sessionId": "mid-speech"})
+    start_events = await asyncio.wait_for(start_task, timeout=2.0)
+
+    assert [event["type"] for event in start_events] == ["greeting"]
+    assert backend.closed == ["mid-speech"]
+    assert "greeting" in backend.cancelled
