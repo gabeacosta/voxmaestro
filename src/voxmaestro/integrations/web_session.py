@@ -150,7 +150,16 @@ class WebSessionAdapter:
             if session.audio.barge_in(turn_id):
                 self.observe("tts.barge_in", 1.0)
         async with session.lock:
+            # End/restart can win while a message waits for this lock.
+            # Never begin a consequential tool turn for a closed session.
+            if self._sessions.get(session_id) is not session:
+                return
             async for event in self._process_message(session_id, session, text, turn_id):
+                # Once dispatched, the Ceinit-owned executor may still finish.
+                # Closing the transport revokes only this session's output, not
+                # authority to retry, cancel, or infer the effect outcome.
+                if self._sessions.get(session_id) is not session:
+                    return
                 yield event
 
     def _start(self, session_id: str, message: Mapping[str, Any]) -> None:
