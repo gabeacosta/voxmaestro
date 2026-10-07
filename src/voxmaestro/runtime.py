@@ -46,7 +46,7 @@ MetricCallback = Callable[[str, float, dict[str, Any]], Awaitable[None]]
 
 @dataclass(frozen=True)
 class RuntimeToolResult:
-    """A tool result that distinguishes real, failed, and simulated work."""
+    """A tool result that distinguishes real, failed, simulated, and uncertain work."""
 
     tool_name: str
     success: bool
@@ -54,6 +54,7 @@ class RuntimeToolResult:
     error: Optional[str] = None
     latency_ms: float = 0
     simulated: bool = False
+    uncertain: bool = False
 
 
 class RuntimeToolBridge:
@@ -69,6 +70,7 @@ class RuntimeToolBridge:
         self.tools = config.get("tools", {})
         self.executor = executor
         self.dry_run = dry_run
+        self._inflight: set[asyncio.Task[Any]] = set()
 
     async def execute(
         self,
@@ -90,10 +92,26 @@ class RuntimeToolBridge:
         timeout_ms = tool.get("timeout_ms", 3000)
 
         try:
-            data = await asyncio.wait_for(
-                self._execute(tool_name, tool, context),
-                timeout=timeout_ms / 1000,
-            )
+            if tool.get("cancellation_authority", "runtime") == "executor":
+                task = asyncio.create_task(self._execute(tool_name, tool, context))
+                done, _ = await asyncio.wait({task}, timeout=timeout_ms / 1000)
+                if not done:
+                    self._track_inflight(task)
+                    latency_ms = (time.monotonic() - started_at) * 1000
+                    context.phase = CallPhase.ACTIVE
+                    return RuntimeToolResult(
+                        tool_name,
+                        False,
+                        error=f"Timeout after {timeout_ms}ms; executor still owns cancellation",
+                        latency_ms=latency_ms,
+                        uncertain=True,
+                    )
+                data = task.result()
+            else:
+                data = await asyncio.wait_for(
+                    self._execute(tool_name, tool, context),
+                    timeout=timeout_ms / 1000,
+                )
             latency_ms = (time.monotonic() - started_at) * 1000
             context.phase = CallPhase.ACTIVE
 
@@ -129,6 +147,22 @@ class RuntimeToolBridge:
                 error=str(error),
                 latency_ms=(time.monotonic() - started_at) * 1000,
             )
+
+    def _track_inflight(self, task: asyncio.Task[Any]) -> None:
+        """Retain executor-owned work after a local timeout and consume completion."""
+
+        self._inflight.add(task)
+
+        def _done(done: asyncio.Task[Any]) -> None:
+            self._inflight.discard(done)
+            try:
+                done.result()
+            except asyncio.CancelledError:
+                logger.warning("Executor-owned tool task was cancelled outside runtime policy")
+            except Exception as error:  # External executor completion after caller timeout.
+                logger.warning("Executor-owned tool task completed with error: %s", error)
+
+        task.add_done_callback(_done)
 
     async def _execute(
         self,
@@ -429,9 +463,15 @@ class VoxMaestroRuntime:
                     "tool": transition.tool_to_fire,
                     "success": tool_result.success,
                     "simulated": tool_result.simulated,
+                    "uncertain": tool_result.uncertain,
                 },
             )
-            if not tool_result.success and not tool_result.simulated:
+            if tool_result.uncertain:
+                result["response_text"] = (
+                    "I couldn't confirm whether that action completed."
+                )
+                should_handoff = False
+            elif not tool_result.success and not tool_result.simulated:
                 failure = self.tools.tools[transition.tool_to_fire].get("on_failure", {})
                 result["response_text"] = failure.get(
                     "message", "I'm sorry, I'm having trouble with that."
