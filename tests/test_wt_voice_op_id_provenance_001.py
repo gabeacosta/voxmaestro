@@ -12,11 +12,7 @@ from copy import deepcopy
 import pytest
 
 from tests.test_runtime_truth import CONFIG
-from voxmaestro import VoxMaestroRuntime
-
-
-class EffectBindingMismatch(RuntimeError):
-    """Synthetic authoritative Ceinit block used by the red baseline."""
+from voxmaestro import ToolEffectBindingError, VoxMaestroRuntime
 
 
 def _config(endpoint: str = "https://example.test/availability"):
@@ -50,7 +46,7 @@ def _ceinit_specimen():
             sink_effects.append((operation_id, current))
             return {"receipt": "sink-confirmed"}
         if prior != current:
-            raise EffectBindingMismatch(
+            raise ToolEffectBindingError(
                 f"operation_id {operation_id} already bound to a different effect"
             )
         return {"receipt": "already-confirmed"}
@@ -112,6 +108,7 @@ async def test_same_operation_id_changed_params_blocks_without_fallback_effect()
 
     assert len(sink_effects) == 1
     assert handoff_effects == []
+    assert result["tool_result"].blocked is True
     assert result["action"] != "handoff"
 
 
@@ -145,6 +142,7 @@ async def test_same_operation_id_changed_resource_blocks_without_fallback_effect
 
     assert len(sink_effects) == 1
     assert handoff_effects == []
+    assert result["tool_result"].blocked is True
     assert result["action"] != "handoff"
 
 
