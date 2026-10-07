@@ -99,17 +99,25 @@ class WebSessionAdapter:
             except Exception as error:
                 yield self._error("tts_bind_failed", str(error), session_id)
                 return
+            # Capture identity before yielding: an `end` event can run
+            # between the greeting and the next iteration of this generator.
+            session = self._sessions[session_id]
             yield {
                 "type": "greeting",
                 "text": self.greeting_text,
                 "sessionId": session_id,
                 "metadata": {"phase": "started"},
             }
-            session = self._sessions[session_id]
+            if self._sessions.get(session_id) is not session:
+                return
             async with session.lock:
+                if self._sessions.get(session_id) is not session:
+                    return
                 async for event in self._emit_speech(
                     session_id, session, self.greeting_text, "greeting"
                 ):
+                    if self._sessions.get(session_id) is not session:
+                        return
                     yield event
             return
 
@@ -299,7 +307,13 @@ class WebSessionAdapter:
         text: str,
         turn_id: str,
     ) -> AsyncIterator[dict[str, Any]]:
-        if session.audio is None or session.voice is None:
+        if (
+            session.audio is None
+            or session.voice is None
+            or self._sessions.get(session_id) is not session
+        ):
+            # A prior call using the same external ID may have been ended
+            # and replaced. Never resurrect its audio stream.
             return
         spoken = str(text or "").strip()
         if not spoken:
@@ -323,7 +337,9 @@ class WebSessionAdapter:
         dropped = session.audio.writer.dropped_for(turn_id)
         if dropped:
             self.observe("tts.chunks_dropped_stale_turn", float(dropped))
-        while not session.queue.empty():
+        # Teardown can race blocked synthesis and leave accepted chunks in
+        # the queue. Transport events must not outlive the owning session.
+        while self._sessions.get(session_id) is session and not session.queue.empty():
             event = self._map_internal_event(session_id, session.queue.get_nowait())
             if event is not None:
                 yield event
@@ -359,11 +375,13 @@ class WebSessionAdapter:
             deliveries = list(handoff.get("delivery") or [])
             statuses = [delivery.get("status") for delivery in deliveries]
             delivered = any(status == "delivered" for status in statuses)
-            fallback = (
-                "I've passed this to a person with the conversation context."
-                if delivered
-                else "I couldn't complete that here, and the automatic handoff was not delivered."
-            )
+            if delivered:
+                fallback = "I've passed this to a person with the conversation context."
+            elif "unknown" in statuses:
+                # The sink may have acted even though its acknowledgment was lost.
+                fallback = "I couldn't confirm whether the handoff was delivered."
+            else:
+                fallback = "I couldn't complete that here, and the automatic handoff was not delivered."
             text = result.get("response_text") or fallback
             yield {
                 "type": "response",
