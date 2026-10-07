@@ -27,6 +27,8 @@ from .reflex.gate import ReflexGate
 
 logger = logging.getLogger("voxmaestro.runtime")
 
+_CLOSED_BEFORE_DISPATCH = object()
+
 
 class RuntimeConfigurationError(RuntimeError):
     """Execution required an adapter that was not configured."""
@@ -104,6 +106,13 @@ class RuntimeToolBridge:
                 timeout=timeout_ms / 1000,
             )
             latency_ms = (time.monotonic() - started_at) * 1000
+            if data is _CLOSED_BEFORE_DISPATCH:
+                return RuntimeToolResult(
+                    tool_name,
+                    False,
+                    error="Call closed before tool dispatch",
+                    latency_ms=latency_ms,
+                )
             if context.phase is not CallPhase.EXITED:
                 context.phase = CallPhase.ACTIVE
 
@@ -148,6 +157,13 @@ class RuntimeToolBridge:
         tool: Mapping[str, Any],
         context: ConversationContext,
     ) -> Any:
+        # asyncio.wait_for schedules this coroutine separately. A close can win
+        # after execute()'s first lifecycle check but before this task starts.
+        # Re-check at the last event-loop boundary before entering the external
+        # executor. There is no await between this check and executor entry.
+        if context.phase is CallPhase.EXITED:
+            return _CLOSED_BEFORE_DISPATCH
+
         params = {
             key: context.metadata.get(key)
             for key in tool.get("params_from_context", [])
