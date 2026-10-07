@@ -85,6 +85,15 @@ class RuntimeToolBridge:
         if filler and on_filler:
             await on_filler(dict(filler))
 
+        # Closing a call is monotonic. A filler callback may have yielded to
+        # a transport-level close; never begin a new external dispatch afterward.
+        if context.phase is CallPhase.EXITED:
+            return RuntimeToolResult(
+                tool_name,
+                False,
+                error="Call closed before tool dispatch",
+            )
+
         context.phase = CallPhase.TOOL_PENDING
         started_at = time.monotonic()
         timeout_ms = tool.get("timeout_ms", 3000)
@@ -95,7 +104,8 @@ class RuntimeToolBridge:
                 timeout=timeout_ms / 1000,
             )
             latency_ms = (time.monotonic() - started_at) * 1000
-            context.phase = CallPhase.ACTIVE
+            if context.phase is not CallPhase.EXITED:
+                context.phase = CallPhase.ACTIVE
 
             if isinstance(data, Mapping) and data.get("__voxmaestro_simulated__"):
                 simulated_data = dict(data)
@@ -113,7 +123,8 @@ class RuntimeToolBridge:
             context.tool_results[tool_name] = data
             return RuntimeToolResult(tool_name, True, data=data, latency_ms=latency_ms)
         except asyncio.TimeoutError:
-            context.phase = CallPhase.ACTIVE
+            if context.phase is not CallPhase.EXITED:
+                context.phase = CallPhase.ACTIVE
             return RuntimeToolResult(
                 tool_name,
                 False,
@@ -121,7 +132,8 @@ class RuntimeToolBridge:
                 latency_ms=(time.monotonic() - started_at) * 1000,
             )
         except Exception as error:  # External adapter boundary.
-            context.phase = CallPhase.ACTIVE
+            if context.phase is not CallPhase.EXITED:
+                context.phase = CallPhase.ACTIVE
             logger.exception("[%s] Tool '%s' failed", context.call_id, tool_name)
             return RuntimeToolResult(
                 tool_name,
@@ -270,6 +282,10 @@ class CallSession:
         self.on_filler = on_filler
         self.on_transfer = on_transfer
         self.on_metric = on_metric
+
+    def close(self) -> None:
+        """Close this conversation without cancelling already-dispatched effects."""
+        self.context.phase = CallPhase.EXITED
 
     async def process_turn(
         self, caller_text: str, intent: Optional[str] = None
@@ -431,6 +447,12 @@ class VoxMaestroRuntime:
                     "simulated": tool_result.simulated,
                 },
             )
+            # The original effect may have completed or become uncertain, but
+            # a closed conversation cannot authorize a secondary fallback effect.
+            if context.phase is CallPhase.EXITED:
+                result["action"] = "ignored"
+                result["state"] = context.current_state
+                return result
             if not tool_result.success and not tool_result.simulated:
                 failure = self.tools.tools[transition.tool_to_fire].get("on_failure", {})
                 result["response_text"] = failure.get(
