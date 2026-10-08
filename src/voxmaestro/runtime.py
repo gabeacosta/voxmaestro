@@ -34,6 +34,10 @@ class RuntimeConfigurationError(RuntimeError):
     """Execution required an adapter that was not configured."""
 
 
+class ToolEffectBindingError(RuntimeError):
+    """Authoritative executor block: operation identity conflicts with effect meaning."""
+
+
 class HandoffNoEffectError(RuntimeError):
     """Adapter-attested rejection that definitively occurred before any effect.
 
@@ -57,7 +61,7 @@ MetricCallback = Callable[[str, float, dict[str, Any]], Awaitable[None]]
 
 @dataclass(frozen=True)
 class RuntimeToolResult:
-    """A tool result that distinguishes real, failed, and simulated work."""
+    """A tool result that distinguishes real, failed, simulated and unknown work."""
 
     tool_name: str
     success: bool
@@ -65,6 +69,8 @@ class RuntimeToolResult:
     error: Optional[str] = None
     latency_ms: float = 0
     simulated: bool = False
+    uncertain: bool = False
+    blocked: bool = False
 
 
 class RuntimeToolBridge:
@@ -80,6 +86,7 @@ class RuntimeToolBridge:
         self.tools = config.get("tools", {})
         self.executor = executor
         self.dry_run = dry_run
+        self._inflight: set[asyncio.Task[Any]] = set()
 
     async def execute(
         self,
@@ -91,37 +98,59 @@ class RuntimeToolBridge:
         if not tool:
             return RuntimeToolResult(tool_name, False, error=f"Unknown tool: {tool_name}")
 
+        operation_id_key = tool.get("operation_id_from_context")
+        if operation_id_key:
+            operation_id = context.metadata.get(operation_id_key)
+            if not isinstance(operation_id, str) or not operation_id.strip():
+                return RuntimeToolResult(
+                    tool_name,
+                    False,
+                    error=(
+                        f"Tool '{tool_name}' requires stable operation_id "
+                        f"from context metadata '{operation_id_key}'"
+                    ),
+                )
+
+        # Admission requires stable operation identity before any filler or dispatch.
+        if context.phase is CallPhase.EXITED:
+            return RuntimeToolResult(tool_name, False, error="Call closed before tool dispatch")
         context.phase = CallPhase.FILLER_PLAYING
         filler = tool.get("filler")
         if filler and on_filler:
             await on_filler(dict(filler))
 
-        # Closing a call is monotonic. A filler callback may have yielded to
-        # a transport-level close; never begin a new external dispatch afterward.
+        # An async filler may close the session. Never dispatch after close.
         if context.phase is CallPhase.EXITED:
-            return RuntimeToolResult(
-                tool_name,
-                False,
-                error="Call closed before tool dispatch",
-            )
-
+            return RuntimeToolResult(tool_name, False, error="Call closed before tool dispatch")
         context.phase = CallPhase.TOOL_PENDING
         started_at = time.monotonic()
         timeout_ms = tool.get("timeout_ms", 3000)
 
         try:
-            data = await asyncio.wait_for(
-                self._execute(tool_name, tool, context),
-                timeout=timeout_ms / 1000,
-            )
+            if tool.get("cancellation_authority", "runtime") == "executor":
+                task = asyncio.create_task(self._execute(tool_name, tool, context))
+                done, _ = await asyncio.wait({task}, timeout=timeout_ms / 1000)
+                if not done:
+                    self._track_inflight(task)
+                    latency_ms = (time.monotonic() - started_at) * 1000
+                    if context.phase is not CallPhase.EXITED:
+                context.phase = CallPhase.ACTIVE
+                    return RuntimeToolResult(
+                        tool_name,
+                        False,
+                        error=f"Timeout after {timeout_ms}ms; executor still owns cancellation",
+                        latency_ms=latency_ms,
+                        uncertain=True,
+                    )
+                data = task.result()
+            else:
+                data = await asyncio.wait_for(
+                    self._execute(tool_name, tool, context),
+                    timeout=timeout_ms / 1000,
+                )
             latency_ms = (time.monotonic() - started_at) * 1000
             if data is _CLOSED_BEFORE_DISPATCH:
-                return RuntimeToolResult(
-                    tool_name,
-                    False,
-                    error="Call closed before tool dispatch",
-                    latency_ms=latency_ms,
-                )
+                return RuntimeToolResult(tool_name, False, error="Call closed before tool dispatch", latency_ms=latency_ms)
             if context.phase is not CallPhase.EXITED:
                 context.phase = CallPhase.ACTIVE
 
@@ -149,6 +178,17 @@ class RuntimeToolBridge:
                 error=f"Timeout after {timeout_ms}ms",
                 latency_ms=(time.monotonic() - started_at) * 1000,
             )
+        except ToolEffectBindingError as error:
+            if context.phase is not CallPhase.EXITED:
+                context.phase = CallPhase.ACTIVE
+            logger.warning("[%s] Tool '%s' blocked by effect binding: %s", context.call_id, tool_name, error)
+            return RuntimeToolResult(
+                tool_name,
+                False,
+                error=str(error),
+                latency_ms=(time.monotonic() - started_at) * 1000,
+                blocked=True,
+            )
         except Exception as error:  # External adapter boundary.
             if context.phase is not CallPhase.EXITED:
                 context.phase = CallPhase.ACTIVE
@@ -160,23 +200,40 @@ class RuntimeToolBridge:
                 latency_ms=(time.monotonic() - started_at) * 1000,
             )
 
+    def _track_inflight(self, task: asyncio.Task[Any]) -> None:
+        """Retain executor-owned work after a local timeout and consume completion."""
+
+        self._inflight.add(task)
+
+        def _done(done: asyncio.Task[Any]) -> None:
+            self._inflight.discard(done)
+            try:
+                done.result()
+            except asyncio.CancelledError:
+                logger.warning("Executor-owned tool task was cancelled outside runtime policy")
+            except Exception as error:  # External executor completion after caller timeout.
+                logger.warning("Executor-owned tool task completed with error: %s", error)
+
+        task.add_done_callback(_done)
+
     async def _execute(
         self,
         tool_name: str,
         tool: Mapping[str, Any],
         context: ConversationContext,
     ) -> Any:
-        # asyncio.wait_for schedules this coroutine separately. A close can win
-        # after execute()'s first lifecycle check but before this task starts.
-        # Re-check at the last event-loop boundary before entering the external
-        # executor. There is no await between this check and executor entry.
+        # The executor-start boundary is the last event-loop check before entry.
         if context.phase is CallPhase.EXITED:
             return _CLOSED_BEFORE_DISPATCH
-
         params = {
             key: context.metadata.get(key)
             for key in tool.get("params_from_context", [])
         }
+        operation_id_key = tool.get("operation_id_from_context")
+        if operation_id_key:
+            # Stable external identity is forwarded unchanged; the executor
+            # owns durable lookup, dedupe, and recovery semantics.
+            params["operation_id"] = context.metadata[operation_id_key]
         if self.executor:
             return await self.executor(tool_name, tool, params, context)
         if self.dry_run:
@@ -478,6 +535,8 @@ class VoxMaestroRuntime:
                     "tool": transition.tool_to_fire,
                     "success": tool_result.success,
                     "simulated": tool_result.simulated,
+                    "uncertain": tool_result.uncertain,
+                    "blocked": tool_result.blocked,
                 },
             )
             # The original effect may have completed or become uncertain, but
@@ -486,7 +545,17 @@ class VoxMaestroRuntime:
                 result["action"] = "ignored"
                 result["state"] = context.current_state
                 return result
-            if not tool_result.success and not tool_result.simulated:
+            if tool_result.blocked:
+                result["response_text"] = (
+                    "That action was blocked because its authorization does not match the requested effect."
+                )
+                should_handoff = False
+            elif tool_result.uncertain:
+                result["response_text"] = (
+                    "I couldn't confirm whether that action completed."
+                )
+                should_handoff = False
+            elif not tool_result.success and not tool_result.simulated:
                 failure = self.tools.tools[transition.tool_to_fire].get("on_failure", {})
                 result["response_text"] = failure.get(
                     "message", "I'm sorry, I'm having trouble with that."
