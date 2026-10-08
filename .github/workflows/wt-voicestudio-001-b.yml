@@ -1,0 +1,57 @@
+name: wt-voicestudio-001-b-hardware
+
+on:
+  push:
+    branches: [wt/voicestudio-001-b-hardware]
+    paths: [".github/wt-voicestudio-001-b.trigger"]
+
+concurrency:
+  group: wt-voicestudio-001-b-voice-host
+  cancel-in-progress: false
+
+jobs:
+  real-audio:
+    runs-on: [self-hosted, voice]
+    timeout-minutes: 55
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check installed models and existing loopback backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/wt-voicestudio-001-b
+          {
+            echo "commit=$GITHUB_SHA"
+            python3 --version
+            python3 -c 'import platform; print(platform.system(), platform.machine())'
+          } > evidence/wt-voicestudio-001-b/host.txt
+          # Never implicitly provision/download weights. Require operator attestation.
+          printenv VOICESTUDIO_MODEL_PREWARMED | grep -qx 1 || {
+            echo 'BLOCKED: prewarm EN/ES engines and attest runner environment' >&2
+            exit 2
+          }
+          python3 -c 'import yaml, pocket_tts'
+          curl -fsS --max-time 6 http://127.0.0.1:3900/.well-known/voicestudio-speech >/dev/null
+      - name: Record both backend and language lanes
+        shell: bash
+        env:
+          PYTHONPATH: src
+        run: |
+          set -uo pipefail
+          dir=evidence/wt-voicestudio-001-b
+          status=0
+          for language in en es; do
+            python3 examples/run_wt_voicestudio_001_b.py --backend voicestudio --language "$language" --voice alloy --model omnivoice --out "$dir/voicestudio-$language.json" || status=1
+            python3 examples/run_wt_voicestudio_001_b.py --backend pocket --language "$language" --voice alba --out "$dir/pocket-$language.json" || status=1
+            python3 examples/summarize_wt_voicestudio_001_b.py --vs "$dir/voicestudio-$language.json" --pocket "$dir/pocket-$language.json" --out "$dir/comparison-$language.json" || status=1
+          done
+          exit "$status"
+      - name: Retain measured and invalid receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wt-voicestudio-001-b-hardware
+          path: evidence/wt-voicestudio-001-b/
+          if-no-files-found: error
