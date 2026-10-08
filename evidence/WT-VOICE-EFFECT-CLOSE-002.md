@@ -7,9 +7,10 @@ session closure wins the final async boundary before the external executor is
 entered. If the executor has already started, closure does not invent
 cancellation or revocation.
 
-This specimen is logically stacked on VoxMaestro PR #48
-(`WT-VOICE-EFFECT-CLOSE-001-B`) at head
-`8e91740362c557ee510ce18f113241ef3334534e`.
+This specimen was originally developed as a logical stack on VoxMaestro PR #48
+(`WT-VOICE-EFFECT-CLOSE-001-B`). After #48 merged, the #53-specific delta was
+transplanted onto current `main` and requalified independently; see
+**Current-main requalification** below.
 
 ## Question
 
@@ -115,6 +116,37 @@ Results:
 The 64-iteration close-before-claim fixture emitted zero effects. The
 dispatch-first control preserved exactly one already-started effect.
 
+## Current-main requalification
+
+Replacement PR: **#55**
+
+Current-main base:
+
+`858101b0dcd81820f9cd7f16bc10d22e030dd527`
+
+Pre-addendum qualification head:
+
+`94d238cf156105b78ac790214a6c55a5881ce7a3`
+
+Only the #53-specific delta was carried onto current main:
+
+- `src/voxmaestro/runtime.py` — final close-before-executor lifecycle recheck;
+- `tests/test_wt_voice_effect_close_002.py` — deterministic race fixture;
+- this evidence artifact.
+
+GitHub Actions run:
+
+`37723937031` — **PASS**
+
+- Python 3.10 job: PASS;
+- Python 3.11 job: PASS;
+- Python 3.12 job: PASS;
+- Ruff: PASS.
+
+This closes the stale-stack integration risk from PR #53. It does not claim a
+live browser/telephony/provider E2E and does not add Ceinit reconciliation
+authority to VoxMaestro.
+
 ## Ownership boundary
 
 - **VoxMaestro:** conversation/session lifecycle and the local decision not to
@@ -135,4 +167,4 @@ boundary, nor reconciliation of irreversible effects after close.
 That is intentionally the next boundary: **close versus already-dispatched
 irreversible effect**.
 
-No merge or deployment is performed by this specimen.
+No deployment is performed by this specimen. Merging the bounded runtime fix does not constitute live browser/telephony/provider deployment qualification.
