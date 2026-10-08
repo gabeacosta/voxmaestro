@@ -9,8 +9,12 @@ external effect has crossed the executor boundary, browser/session closure ends
 conversation liveness but does not create retry, cancellation, or recovery
 authority inside VoxMaestro.
 
-Logical baseline: WT-VOICE-EFFECT-CLOSE-002 final evidence head
+Original logical baseline: WT-VOICE-EFFECT-CLOSE-002 final stacked evidence head
 `0e3e2ba4de6384e995ccbf54d7ce4f6621375527`.
+
+The specimen was later transplanted onto current `main` after the bounded
+WT-VOICE-EFFECT-CLOSE-002 fix merged via PR #55; see **Current-main
+requalification** below.
 
 ## Question
 
@@ -87,6 +91,45 @@ Results:
 
 Both reconciliation fixtures passed on all three Python versions.
 
+## Current-main requalification
+
+Replacement PR: **#56**
+
+Current-main base:
+
+`081f5acbcbcbbedaf527ca404c5c989b782014ef`
+
+Hardened code/test head:
+
+`e89cf77a60c40fc46028ca014c71011404ff069d`
+
+GitHub Actions run:
+
+`37724482169` — **PASS**
+
+- Python 3.10: PASS;
+- Python 3.11: PASS;
+- Python 3.12: PASS;
+- Ruff: PASS.
+
+The replacement changes **no VoxMaestro production/runtime files**. It carries
+only the reconciliation regression and this evidence artifact.
+
+The sensitivity control was strengthened during requalification: it now disables
+lookup-before-retry in the **same Ceinit-shaped executor specimen**. Two attempts
+then produce:
+
+```
+DISPATCH_STARTED
+EFFECT_UNKNOWN
+DISPATCH_STARTED
+EFFECT_UNKNOWN
+```
+
+and two sink effects for the same operation identity. This demonstrates that the
+positive path's one-effect result depends on lookup-before-retry rather than on a
+non-sensitive standalone append fixture.
+
 ## Architecture disposition
 
 - **VoxMaestro:** conversation/session liveness and post-close output suppression.
@@ -108,4 +151,4 @@ handling.
 
 Those remain Ceinit-side verification targets.
 
-No merge or deployment performed.
+No deployment is performed by this specimen. Merging its regression/evidence does not add reconciliation authority to VoxMaestro.
