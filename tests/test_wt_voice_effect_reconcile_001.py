@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
+from types import SimpleNamespace
 
 import pytest
 
@@ -26,7 +27,8 @@ async def _tool_intent(text, context):
 class _CeinitReconciliationSpecimen:
     """In-memory authority specimen; not a production Ceinit implementation."""
 
-    def __init__(self):
+    def __init__(self, *, lookup_before_retry=True):
+        self.lookup_before_retry = lookup_before_retry
         self.effect_applied = asyncio.Event()
         self.release_lost_ack = asyncio.Event()
         self.calls = []
@@ -38,7 +40,7 @@ class _CeinitReconciliationSpecimen:
         self.calls.append((context.call_id, operation_id, name))
 
         # Recovery path: authoritative sink lookup confirms the prior effect.
-        if operation_id in self.sink_effects:
+        if self.lookup_before_retry and operation_id in self.sink_effects:
             self.journal.append((operation_id, "SINK_CONFIRMED"))
             return {"available": True, "reconciled": True}
 
@@ -137,14 +139,28 @@ async def test_effect_reconcile_001_close_after_dispatch_reconciles_without_seco
 
 @pytest.mark.asyncio
 async def test_effect_reconcile_001_negative_control_blind_retry_duplicates_sink():
-    """Sensitivity control: no lookup-before-retry duplicates the irreversible effect."""
-    sink_effects = []
+    """The same executor path duplicates the effect when lookup is disabled."""
     operation_id = "op-blind-retry"
+    specimen = _CeinitReconciliationSpecimen(lookup_before_retry=False)
+    specimen.release_lost_ack.set()
+    context = SimpleNamespace(
+        call_id="blind-retry-session",
+        metadata={"operation_id": operation_id},
+    )
 
-    async def blind_attempt():
-        sink_effects.append(operation_id)
+    for _ in range(2):
+        with pytest.raises(TimeoutError, match="acknowledgment lost"):
+            await specimen.execute(
+                "check_availability",
+                {},
+                {},
+                context,
+            )
 
-    await blind_attempt()
-    await blind_attempt()
-
-    assert sink_effects == [operation_id, operation_id]
+    assert specimen.sink_effects == [operation_id, operation_id]
+    assert specimen.journal == [
+        (operation_id, "DISPATCH_STARTED"),
+        (operation_id, "EFFECT_UNKNOWN"),
+        (operation_id, "DISPATCH_STARTED"),
+        (operation_id, "EFFECT_UNKNOWN"),
+    ]
