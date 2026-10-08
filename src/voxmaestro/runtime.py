@@ -134,7 +134,7 @@ class RuntimeToolBridge:
                     self._track_inflight(task)
                     latency_ms = (time.monotonic() - started_at) * 1000
                     if context.phase is not CallPhase.EXITED:
-                context.phase = CallPhase.ACTIVE
+                        context.phase = CallPhase.ACTIVE
                     return RuntimeToolResult(
                         tool_name,
                         False,
