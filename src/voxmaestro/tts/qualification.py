@@ -74,13 +74,13 @@ def _invalid_lane_field(result: TTSLaneResult) -> str | None:
     aggregate_lane() producer. This checks plausibility, NOT provenance of the
     measured audio or hardware.
     """
-    if type(result.evidence_complete) is not bool:
+    if not isinstance(result.evidence_complete, bool):
         return "evidence_complete"
     for field in ("backend", "quantization", "language"):
         value = getattr(result, field)
         if not isinstance(value, str) or not value.strip():
             return field
-    if type(result.sessions) is not int or result.sessions <= 0:
+    if not isinstance(result.sessions, int) or isinstance(result.sessions, bool) or result.sessions <= 0:
         return "sessions"
     for field in (
         "successful_runs",
@@ -89,7 +89,7 @@ def _invalid_lane_field(result: TTSLaneResult) -> str | None:
         "session_crosstalk_events",
     ):
         value = getattr(result, field)
-        if type(value) is not int or value < 0:
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
             return field
     for field in (
         "first_chunk_p95_ms",
