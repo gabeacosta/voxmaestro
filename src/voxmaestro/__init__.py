@@ -16,6 +16,7 @@ from .runtime import (
     HandoffNoEffectError,
     RuntimeConfigurationError,
     RuntimeToolResult,
+    ToolEffectBindingError,
     VoxMaestroRuntime,
 )
 from .outcome import (
@@ -42,6 +43,7 @@ __all__ = [
     "HandoffNoEffectError",
     "RuntimeConfigurationError",
     "RuntimeToolResult",
+    "ToolEffectBindingError",
     "CallPhase",
     "TransitionResult",
     "ToolCallResult",
