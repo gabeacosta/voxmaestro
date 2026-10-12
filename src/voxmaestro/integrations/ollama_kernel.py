@@ -106,6 +106,8 @@ def create_ollama_kernel(
         if not isinstance(body, dict):
             raise web.HTTPBadGateway(text="Invalid model response")
         message = body.get("message")
+        if isinstance(message, dict) and message.get("tool_calls"):
+            raise web.HTTPBadGateway(text="Unapproved model tool response")
         result = message.get("content") if isinstance(message, dict) else None
         if not isinstance(result, str) or not result.strip():
             raise web.HTTPBadGateway(text="Empty model response")
