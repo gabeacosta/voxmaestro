@@ -148,3 +148,69 @@ async def test_read_only_gateway_rejects_control_injection():
         assert not any("effect" in frame for frame in adapter.calls)
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_slow_generator_cannot_escape_global_session_deadline():
+    """A hung async model turn must not keep the socket/slot alive forever."""
+    from aiohttp.test_utils import TestClient, TestServer
+    from voxmaestro.integrations.secure_ingress import create_voice_app
+
+    class HeldAdapter(PreviewAdapter):
+        def __init__(self):
+            super().__init__()
+            self.entered = asyncio.Event()
+            self.release = asyncio.Event()
+            self.cancelled = False
+
+        async def iter_events(self, frame):
+            if frame["type"] == "message":
+                self.calls.append(dict(frame))
+                self.entered.set()
+                try:
+                    await self.release.wait()
+                except asyncio.CancelledError:
+                    self.cancelled = True
+                    raise
+                yield {
+                    "type": "response", "sessionId": frame["sessionId"],
+                    "text": "Should not arrive after deadline",
+                }
+                return
+            async for event in super().iter_events(frame):
+                yield event
+
+    registry = MemoryVoiceAdmission(allowed_origins={ORIGIN})
+    adapter = HeldAdapter()
+    app = create_voice_app(
+        adapter=adapter,
+        authenticator=lambda request: request.headers.get("X-Test-Identity"),
+        admission=registry,
+        wss_url="wss://voice.voicescheduleai.com/session",
+        max_session_seconds=1,
+    )
+    client = TestClient(TestServer(app))
+    await client.start_server()
+    try:
+        ticket = (await (await issue(client)).json())["ticket"]
+        ws = await client.ws_connect(
+            "/session", headers=auth_headers(), protocols=protocols(ticket)
+        )
+        await ws.send_json({"type": "start", "sessionId": SESSION})
+        assert (await ws.receive_json(timeout=2))["type"] == "greeting"
+        await ws.send_json({
+            "type": "message", "sessionId": SESSION, "text": "Keep talking forever"
+        })
+        await asyncio.wait_for(adapter.entered.wait(), timeout=2)
+        closure = await ws.receive(timeout=3)
+        assert closure.type.name in {"CLOSE", "CLOSING", "CLOSED"}
+        await asyncio.sleep(0.03)
+        assert adapter.cancelled
+        assert SESSION not in adapter.active
+        assert not registry._active
+        assert not any(
+            event["type"] == "booking_confirm" for event in adapter.calls
+        )
+    finally:
+        adapter.release.set()
+        await client.close()
