@@ -95,6 +95,12 @@ available." Because no availability/calendar interface exists, this is a
 **capability-truth FAIL**, not permission to continue with the same model.
 `nomic-embed-text:latest` is an embeddings model, not a chat replacement.
 
+For independent evaluation (NOT YET INSTALLED OR APPROVED), one compact
+conversation candidate is `qwen3:4b-instruct` (~2.5 GB on Ollama's official
+registry). Do not pull it automatically. Record model hash and measure response
+quality/latency on the M4 Mac mini before acceptance. A model's availability
+in the registry is not evidence of local installation or fitness.
+
 The Ollama kernel now REQUIRES two distinct installed model names. The first
 is `vsai-intent-v7:latest`; a second conversation model must be selected,
 installed with explicit operator approval, and qualified separately. Do not
