@@ -19,7 +19,7 @@ from urllib.parse import urlsplit
 
 GATEWAY_PORT = 7789
 KERNEL_PORT = 7788
-SERVE_HTTPS_PORT = 8443
+SERVE_HTTPS_PORT = 10000
 
 
 def command_output(*args: str) -> tuple[bool, str]:
@@ -69,7 +69,7 @@ def tailnet_origin(status: str) -> str | None:
 
 
 def occupied_serve_port(status: str, port: int = SERVE_HTTPS_PORT) -> bool:
-    """Conservative: any current reference to :8443 in Serve/Funnel state blocks.
+    """Conservative: any current reference to :10000 in Serve/Funnel state blocks.
 
     False positives only prevent deployment; no automatic state changes occur.
     """
@@ -108,7 +108,7 @@ def report(repo_root: Path, site_root: Path, show_sensitive: bool = False) -> di
     # If either status command cannot be inspected, deployment must STOP.
     checks["serve_state_inspectable"] = ok_serve
     checks["funnel_state_inspectable"] = ok_funnel
-    checks["https_8443_unallocated"] = (
+    checks["https_10000_unallocated"] = (
         ok_serve and ok_funnel
         and not occupied_serve_port(serve)
         and not occupied_serve_port(funnel)
