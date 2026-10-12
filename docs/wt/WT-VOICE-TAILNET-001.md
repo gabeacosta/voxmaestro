@@ -23,6 +23,16 @@ Tailscale-User-Profile-Pic. These are absent for tagged devices and Funnel.
 The frontend, backend session bootstrap and WSS endpoint all share the same
 HTTPS origin, avoiding cross-domain cookies and permissions.
 
+## Observed host state, 2026-10-12
+
+The Mac-side screenshot confirms existing Tailscale Serve mappings on 443
+and 8443 (to ports 8766 and 8778, respectively). Ollama is listening on
+127.0.0.1:11434, but its installed model inventory was NOT shown. Ports 7788
+and 7789 have no listeners. Port **10000 is NOT YET VERIFIED FREE**: check
+both active Serve/Funnel configuration and the socket before any change.
+The Tailscale CLI also reported a client/server version mismatch; do not
+reset or upgrade the daemon as part of this staging slice.
+
 ## Mac mini preparation (read-only commands first)
 
 Verify prerequisites are already installed and the Mac is tailnet connected:
