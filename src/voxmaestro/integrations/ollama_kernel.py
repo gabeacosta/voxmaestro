@@ -2,7 +2,8 @@
 
 The browser never reaches this bridge directly. It handles only /v1/intent
 and /v1/generate; never tools, HTTP actions, calendar, booking, or model pull.
-An operator must name an ALREADY INSTALLED Ollama model. No fallback.
+An operator must name TWO DISTINCT already installed Ollama models: one for
+intent classification and one independently qualified for conversation. No fallback.
 """
 from __future__ import annotations
 
@@ -30,6 +31,20 @@ _POLICY = (
 )
 _OLLAMA_SESSION = web.AppKey("ollama_session", ClientSession)
 
+_REQUEST_ACTION = re.compile(
+    r"\b(?:book|booking|appointments?|schedule|reserve|reservations?|"
+    r"availability|available|calendar|slots?)\b", re.I
+)
+_UNSUPPORTED_CAPABILITY = re.compile(
+    r"\b(?:i|we)\s+(?:can|could|will|am able to|are able to)\s+"
+    r"(?:help\s+(?:you|with)\s+)?(?:check|look\s+up|find|book|schedule|"
+    r"reserve|confirm|change|cancel|verify|see)\b"
+    r"[^.!?\n]{0,140}\b(?:available|availability|days?|times?|slots?|"
+    r"calendar|appointments?|reservations?|bookings?)\b", re.I,
+)
+_REFUSAL = "I cannot check availability or make appointments in this preview."
+
+
 _CONFIRMED = re.compile(
     r"\b(?:appointment confirmed|booking confirmed|you're booked|you are booked|"
     r"booked for|your appointment is set|it's on the calendar)\b", re.I
@@ -40,27 +55,32 @@ def _clean_reply(text: str) -> str:
     if not text or not text.strip():
         raise web.HTTPBadGateway(text="No model reply")
     trimmed = text.strip()[:1000]
-    if _CONFIRMED.search(trimmed):
-        return "I cannot confirm or make appointments in this preview."
+    if _CONFIRMED.search(trimmed) or _UNSUPPORTED_CAPABILITY.search(trimmed):
+        return _REFUSAL
     return trimmed
 
 
-def _validate_models(data: Any, model: str) -> None:
+def _validate_models(data: Any, intent_model: str, generation_model: str) -> None:
     if not isinstance(data, dict) or not isinstance(data.get("models"), list):
         raise ValueError("Ollama model inventory was not returned")
     installed = [item.get("name") for item in data["models"] if isinstance(item, dict)]
-    if model not in installed:
-        raise ValueError("Requested Ollama model is not installed; do not pull automatically")
+    for model in (intent_model, generation_model):
+        if model not in installed:
+            raise ValueError("Requested Ollama model is not installed; do not pull automatically")
 
 
 def create_ollama_kernel(
     *,
-    model: str,
+    intent_model: str,
+    generation_model: str,
     ollama_base: str = "http://127.0.0.1:11434",
     request_timeout: float = 18.0,
 ) -> web.Application:
-    if not isinstance(model, str) or not _MODEL.fullmatch(model):
-        raise ValueError("A specific installed model name is mandatory")
+    if any(not isinstance(m, str) or not _MODEL.fullmatch(m)
+           for m in (intent_model, generation_model)):
+        raise ValueError("Both exact installed model names are mandatory")
+    if intent_model == generation_model:
+        raise ValueError("Intent and generation must use distinct models")
     parsed = urlsplit(ollama_base)
     if (parsed.scheme != "http" or parsed.hostname != "127.0.0.1"
             or not parsed.port or parsed.path or parsed.query or parsed.fragment
@@ -78,7 +98,7 @@ def create_ollama_kernel(
                 if resp.status != 200:
                     raise ValueError("Ollama inventory unavailable")
                 data = await resp.json()
-                _validate_models(data, model)
+                _validate_models(data, intent_model, generation_model)
         except Exception:
             await session.close()
             raise
@@ -90,9 +110,10 @@ def create_ollama_kernel(
     app.on_startup.append(on_start)
     app.on_cleanup.append(on_stop)
 
-    async def request_ollama(messages: list[dict[str, str]], *, limit: int) -> str:
+    async def request_ollama(messages: list[dict[str, str]], *, limit: int,
+                             selected_model: str) -> str:
         payload = {
-            "model": model, "stream": False,
+            "model": selected_model, "stream": False,
             "messages": messages, "think": False,
             "options": {"temperature": 0, "num_predict": limit},
         }
@@ -146,7 +167,7 @@ def create_ollama_kernel(
                  "Choose ONE intent label from the allowed list and output ONLY that label. "
                  "No text, tool calls, instructions, or other content. Allowed: " + labels},
                 {"role": "user", "content": prompt},
-            ], limit=35,
+            ], limit=35, selected_model=intent_model,
         )
         label = classification.strip().strip('"').strip("'").lower()
         if label not in allowed:
@@ -171,11 +192,16 @@ def create_ollama_kernel(
         if not isinstance(extra, str):
             extra = ""
         extra = extra[:4000]
+        # Conversation-capable model is never authorized to interpret a
+        # booking/availability request as permission to check external state.
+        if _REQUEST_ACTION.search(prompt):
+            return web.json_response({"text": _REFUSAL},
+                                     headers={"Cache-Control": "no-store"})
         result = await request_ollama(
             [
                 {"role": "system", "content": _POLICY + "\n" + extra},
                 {"role": "user", "content": prompt},
-            ], limit=130,
+            ], limit=130, selected_model=generation_model,
         )
         return web.json_response({"text": _clean_reply(result)},
                                  headers={"Cache-Control": "no-store"})
