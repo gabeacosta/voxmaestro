@@ -141,7 +141,8 @@ def report(repo_root: Path, site_root: Path, show_sensitive: bool = False) -> di
 
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
-    default_site = Path.home() / "design-factory" / "workspaces/client-sites/voicescheduleai"
+    stage = Path.home() / "design-factory-maya-stage" / "workspaces/client-sites/voicescheduleai"
+    default_site = stage if stage.is_dir() else Path.home() / "design-factory" / "workspaces/client-sites/voicescheduleai"
     show_origin = "--show-origin" in sys.argv[1:]
     record = report(root, default_site, show_sensitive=show_origin)
     print(json.dumps(record, indent=2, sort_keys=True))
