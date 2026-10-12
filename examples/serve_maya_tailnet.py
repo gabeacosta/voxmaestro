@@ -24,7 +24,7 @@ from urllib.parse import urlsplit
 
 from voxmaestro import VoxMaestroRuntime
 from voxmaestro.conductor import SchemaLoader
-from voxmaestro.fleet import fleet_from_config
+from voxmaestro.fleet import KernelIntentClassifier, KernelGenerationAdapter
 from voxmaestro.integrations.tailnet_stage import make_tailnet_stage
 from voxmaestro.integrations.web_session import WebSessionAdapter
 
@@ -82,9 +82,14 @@ def main(argv=None) -> None:
         raise ValueError("Staging port must be nonprivileged")
     config = readonly_kernel_config(args.config)
     kernel_preflight(config)
-    classifier, generator = fleet_from_config(config)
-    if not classifier or not generator:
-        raise ValueError("Local intent and generation adapters must be available")
+    endpoint = config["intent"]["endpoint"]
+    # Staging-local Ollama may have cold-start latency. Bound both adapter
+    # calls explicitly; never escalate or silently switch provider.
+    classifier = KernelIntentClassifier(
+        endpoint, intents=tuple(item["id"] for item in config["intent"]["intents"]),
+        timeout_ms=12000,
+    )
+    generator = KernelGenerationAdapter(endpoint, timeout_ms=20000)
     runtime = VoxMaestroRuntime(config, intent_classifier=classifier)
     adapter = WebSessionAdapter(runtime, generation_adapter=generator)
     app = make_tailnet_stage(
