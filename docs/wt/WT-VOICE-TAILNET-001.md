@@ -54,7 +54,7 @@ First, run the read-only host diagnostic:
 
     python3 "$HOME/voxmaestro-maya-stage/examples/maya_mac_preflight.py"
 
-If the report says BLOCKED, do not enable Serve or launch the runtime. The report checks port 10000 allocation, local kernel status, existing files, and Tailscale availability without modifying any of them. The default output hides the tailnet hostname.
+If the report says BLOCKED, do not enable Serve. The report checks port 10000 allocation, local kernel status, existing files, and Tailscale availability without modifying any of them. The default output hides the tailnet hostname. The missing kernel on port 7788 is the one expected initial blocker that can be resolved by the **separately reviewed local Ollama bridge** below. Any missing site files, occupied staging port, or uninspectable Serve/Funnel status requires a stop.
 
 Create a dedicated venv rather than modifying other Python installations:
 
@@ -63,10 +63,41 @@ Create a dedicated venv rather than modifying other Python installations:
     . .venv/bin/activate
     python -m pip install -e '.[voice_web]'
 
-A **real local kernel** must be listening on 127.0.0.1:7788 with
-/v1/intent and /v1/generate and with the models declared in the read-only
-YAML. The launcher checks its TCP port but cannot prove model quality; the
-iPhone conversation round-trip is an explicit acceptance step.
+The Mac already has Ollama listening on loopback port 11434. It speaks
+/api/chat, not VoxMaestro's /v1/intent and /v1/generate. Use the reviewed,
+localhost-only adapter; do NOT point VoxMaestro directly at 11434.
+
+**Read-only inspection first:**
+
+    ollama list
+    curl -fsS --max-time 5 http://127.0.0.1:11434/api/version
+    lsof -nP -iTCP:10000 -sTCP:LISTEN
+    tailscale serve status
+    tailscale funnel status
+
+Only after reviewing this output, choose an **exact installed model name**
+from ollama list. No model download or default selection is performed.
+
+**In a separate foreground terminal (with the staging venv active):**
+
+    cd "$HOME/voxmaestro-maya-stage"
+    python examples/serve_maya_ollama_kernel.py --model "<exact-installed-model>"
+
+The bridge confirms /api/tags contains the exact named model before listening
+at 127.0.0.1:7788. It sends NO tools, allows only read-only generation, and
+refuses a remote Ollama address. Leave this foreground process visible.
+The inference model is only a provider; it has no independent effect authority.
+
+After the local bridge starts, run:
+
+    python3 "$HOME/voxmaestro-maya-stage/examples/maya_mac_preflight.py"
+
+Require HOST_CHECKS_PASS and confirm HTTPS port 10000 is not already configured.
+If blocked, STOP; preserve 443 and 8443 and their existing proxy targets.
+
+The two local model API routes are now /v1/intent and /v1/generate, as expected
+by the read-only YAML. A TCP preflight is not proof of a meaningful model
+response; the iPhone conversation round-trip remains an acceptance gate.
 
 Get the real tailnet HTTPS origin without guessing:
 
