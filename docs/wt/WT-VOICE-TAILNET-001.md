@@ -33,6 +33,22 @@ both active Serve/Funnel configuration and the socket before any change.
 The Tailscale CLI also reported a client/server version mismatch; do not
 reset or upgrade the daemon as part of this staging slice.
 
+## User-observed local model qualification — 2026-10-12
+
+The user explicitly approved installing `qwen3:4b-instruct`. Mac output showed
+an Ollama `pull` success, installed model inventory identifying both
+`qwen3:4b-instruct` (digest prefix `0edcdef34593eac1`) and
+`vsai-intent-v7:latest` (prefix `2ea46c1c173664f8`), and three
+read-only `/api/chat` probes at 1.57s, 1.48s, and 1.35s. The natural
+greeting and capability-truth refusals were appropriate. These are **Mac
+model inference times** supplied by the user, NOT hosted gateway, browser
+audio or phone round-trip observations. The full local model digest must be
+recorded at host activation; prefixes alone do not pin a deployable build.
+
+Qwen3 is the qualified conversational **candidate for host staging**, not
+a verified production receptionist. The GitHub full-stack mock-inference
+network test validates routing only; it does not rerun the real local model.
+
 ## Mac mini preparation (read-only commands first)
 
 Verify prerequisites are already installed and the Mac is tailnet connected:
