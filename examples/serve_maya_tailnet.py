@@ -3,13 +3,13 @@
 Preconditions:
     pip install -e '.[voice_web]'
     python examples/serve_maya_tailnet.py \
-      --origin https://<mac>.<tailnet>.ts.net:8443 \
+      --origin https://<mac>.<tailnet>.ts.net:10000 \
       --allowed-login <your-tailnet-user-login> \
       --site-dir <path-to-approved-design-factory-Maya-V3-voice-site> \
       --config <path-to-voxmaestro-readonly.yaml>
 
 Then, in a separate terminal, ONLY after checking Serve/Funnel status:
-    tailscale serve --https=8443 --bg http://127.0.0.1:7789
+    tailscale serve --https=10000 --bg http://127.0.0.1:7789
 
 Never run tailscale funnel. This server has no real booking capabilities.
 """
@@ -65,7 +65,7 @@ def kernel_preflight(config: dict) -> None:
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Private tailnet-only Maya staging")
-    parser.add_argument("--origin", required=True, help="Exact HTTPS tailnet origin on :8443")
+    parser.add_argument("--origin", required=True, help="Exact HTTPS tailnet origin on :10000")
     parser.add_argument("--allowed-login", required=True, action="append",
                         help="Tailscale-User-Login allowed to use this instance")
     parser.add_argument("--site-dir", required=True, type=Path)
@@ -97,7 +97,7 @@ def main(argv=None) -> None:
     print("Maya voice staging: localhost only; conversation:readonly; effects disabled")
     print("Local socket: http://127.0.0.1:" + str(args.port))
     print("Expected tailnet origin: " + args.origin)
-    print("Use Tailscale Serve ONLY after verifying its port 8443 is free.")
+    print("Use Tailscale Serve ONLY after verifying its port 10000 is free.")
     web.run_app(
         app,
         host="127.0.0.1",
