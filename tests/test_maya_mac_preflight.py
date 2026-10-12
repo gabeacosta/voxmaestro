@@ -16,16 +16,16 @@ report = SCRIPT["report"]
 
 def test_tailnet_hostname_from_actual_tailscale_json():
     valid = json.dumps({"Self": {"DNSName": "mini.example.ts.net."}})
-    assert host(valid) == "https://mini.example.ts.net:8443"
+    assert host(valid) == "https://mini.example.ts.net:10000"
     assert host("not json") is None
     assert host(json.dumps({"Self": {"DNSName": "host.example.com."}})) is None
     assert host(json.dumps({"Self": {"DNSName": "evil@host.ts.net"}})) is None
 
 
-def test_existing_serve_or_funnel_8443_is_a_hard_block():
-    assert occupied('{"HTTPS":{"8443":{"Handlers":{"/":{}}}}}')
-    assert occupied("https://mini.example.ts.net:8443")
-    assert not occupied('{"TCP":{":443":{}}}')
+def test_existing_serve_or_funnel_10000_is_a_hard_block():
+    assert occupied('{"HTTPS":{"10000":{"Handlers":{"/":{}}}}}')
+    assert occupied("https://mini.example.ts.net:10000")
+    assert not occupied('{"TCP":{":443":{},":8443":{}}}')
     assert occupied(None)
 
 
@@ -54,7 +54,7 @@ def test_uninspectable_tailscale_status_fails_closed(tmp_path):
         status = report(repo_root, site)
         assert status["result"] == "BLOCKED"
         assert not status["checks"]["serve_state_inspectable"]
-        assert not status["checks"]["https_8443_unallocated"]
+        assert not status["checks"]["https_10000_unallocated"]
         assert status["private_origin"] is None
     finally:
         report.__globals__["command_output"] = original
@@ -89,7 +89,7 @@ def test_success_output_does_not_expose_mac_dns_by_default(tmp_path):
         status = report(repo, site)
         assert "mini.example.ts.net" not in json.dumps(status)
         assert status["private_origin"] == "[detected; use --show-origin locally]"
-        assert status["checks"]["https_8443_unallocated"]
+        assert status["checks"]["https_10000_unallocated"]
     finally:
         report.__globals__["command_output"] = original
         report.__globals__["port_bindable"] = old_bind
