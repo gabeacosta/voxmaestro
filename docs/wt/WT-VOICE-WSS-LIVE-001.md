@@ -11,6 +11,7 @@ Extends code-qualified single-process admission gate (WT-VOICE-WSS-ADMISSION-001
 3. An admitted socket sends a different session ID. Require rejection before runtime.
 4. A redeemed ticket is replayed after clean end. Require HTTP 403 and no state resurrection.
 5. A browser injects an effect-shaped control field. Require closure, zero effect-shaped input accepted by runtime.
+6. A model/runtime turn blocks past the session deadline. Require timeout, cancellation of its pending delivery, transport closure, and release of the admission slot.
 
 ## Trust boundaries
 
