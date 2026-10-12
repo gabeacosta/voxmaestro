@@ -43,10 +43,10 @@ def check_tailnet_origin(origin: str) -> str:
     url = urlsplit(origin)
     if (
         url.scheme != "https" or not url.hostname or not url.hostname.endswith(".ts.net")
-        or url.port != 8443 or url.username or url.password
+        or url.port != 10000 or url.username or url.password
         or url.path or url.query or url.fragment
     ):
-        raise ValueError("Use an exact https://<machine>.<tailnet>.ts.net:8443 origin")
+        raise ValueError("Use an exact https://<machine>.<tailnet>.ts.net:10000 origin")
     return origin
 
 
