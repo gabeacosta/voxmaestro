@@ -10,6 +10,7 @@ import asyncio
 import json
 import re
 from typing import Any
+from urllib.parse import urlsplit
 
 from aiohttp import ClientSession, ClientTimeout, web
 
@@ -58,8 +59,11 @@ def create_ollama_kernel(
 ) -> web.Application:
     if not isinstance(model, str) or not _MODEL.fullmatch(model):
         raise ValueError("A specific installed model name is mandatory")
-    if ollama_base != "http://127.0.0.1:11434":
-        raise ValueError("Ollama must remain on the default loopback-only port")
+    parsed = urlsplit(ollama_base)
+    if (parsed.scheme != "http" or parsed.hostname != "127.0.0.1"
+            or not parsed.port or parsed.path or parsed.query or parsed.fragment
+            or parsed.username or parsed.password):
+        raise ValueError("Ollama must be a loopback-only HTTP service")
     if not 2 <= request_timeout <= 25:
         raise ValueError("Model timeout out of bounded staging range")
 
