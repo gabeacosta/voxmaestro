@@ -35,9 +35,9 @@ Verify prerequisites are already installed and the Mac is tailnet connected:
     git -C "$HOME/design-factory" status --short
 
 DO NOT reset, clear, replace or run Serve until reviewing current Serve and
-Funnel allocations. **8443** is the requested isolation port, not 443.
-If 8443 is occupied, STOP and choose a dedicated alternative release plan
-rather than displacing the current config.
+Funnel allocations. **10000** is the requested isolation port, not 443.
+The Mac already uses HTTPS 443 and 8443 for other services. Preserve BOTH.
+If staging port 10000 is occupied, STOP; never reset or displace existing Serve/Funnel routes.
 
 Install the exact review branches in **separate worktrees** (avoid changing
 current checkouts or mixing production branches):
@@ -54,7 +54,7 @@ First, run the read-only host diagnostic:
 
     python3 "$HOME/voxmaestro-maya-stage/examples/maya_mac_preflight.py"
 
-If the report says BLOCKED, do not enable Serve or launch the runtime. The report checks port 8443 allocation, local kernel status, existing files, and Tailscale availability without modifying any of them. The default output hides the tailnet hostname.
+If the report says BLOCKED, do not enable Serve or launch the runtime. The report checks port 10000 allocation, local kernel status, existing files, and Tailscale availability without modifying any of them. The default output hides the tailnet hostname.
 
 Create a dedicated venv rather than modifying other Python installations:
 
@@ -70,7 +70,7 @@ iPhone conversation round-trip is an explicit acceptance step.
 
 Get the real tailnet HTTPS origin without guessing:
 
-    tailscale status --json | python3 -c 'import sys,json; d=json.load(sys.stdin); n=d["Self"]["DNSName"].rstrip("."); assert n.endswith(".ts.net"); print("https://"+n+":8443")'
+    tailscale status --json | python3 -c 'import sys,json; d=json.load(sys.stdin); n=d["Self"]["DNSName"].rstrip("."); assert n.endswith(".ts.net"); print("https://"+n+":10000")'
 
 Copy the printed value into ORIGIN. Determine your exact Tailscale
 login (email) from the admin console, not a guessed account identifier.
@@ -81,7 +81,7 @@ From the VoxMaestro staging worktree, with the venv activated, run the
 command below in a **foreground terminal**:
 
     SITE="$HOME/design-factory-maya-stage/workspaces/client-sites/voicescheduleai"
-    ORIGIN="https://<exact-machinename>.<exact-tailnet>.ts.net:8443"
+    ORIGIN="https://<exact-machinename>.<exact-tailnet>.ts.net:10000"
     python examples/serve_maya_tailnet.py \
       --origin "$ORIGIN" \
       --allowed-login "<exact-authorized-tailscale-login>" \
@@ -98,7 +98,7 @@ Once the local server is healthy and the port is confirmed unallocated,
 **explicitly configure tailnet-only Serve, never Funnel**, in a second
 terminal:
 
-    tailscale serve --bg --https=8443 http://127.0.0.1:7789
+    tailscale serve --bg --https=10000 http://127.0.0.1:7789
     tailscale serve status
 
 Expected: an HTTPS URL at your origin which is accessible only to devices
@@ -141,11 +141,11 @@ phone, do not substitute a simulator or recorded screenshot for speech evidence.
 
 ## Safe shutdown
 
-Stop the foreground local server. To remove the isolated 8443 mapping,
+Stop the foreground local server. To remove the isolated 10000 mapping,
 review current Serve status and ONLY THEN run the command for the specific
 port (not a global reset):
 
-    tailscale serve --https=8443 off
+    tailscale serve --https=10000 off
 
 Confirm its effect with tailscale serve status. Do **not** run
 tailscale serve reset, since it can remove unrelated services.
