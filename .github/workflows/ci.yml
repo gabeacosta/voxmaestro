@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, feat/wt-voice-wss-admission-001]
+    branches: [main]
   pull_request:
     branches: [main]
 
