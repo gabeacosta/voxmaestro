@@ -276,14 +276,26 @@ def create_voice_app(
                 ):
                     await ws.close(code=1008, message=b"invalid_message")
                     break
-                async for event in adapter.iter_events(frame):
-                    if event.get("sessionId") not in {None, session_id}:
-                        continue
-                    if event.get("type") in {
-                        "booking_confirm", "booking_verified", "effect_verified", "audio"
-                    }:
-                        continue
-                    await ws.send_json(event)
+                async def deliver_events() -> None:
+                    async for event in adapter.iter_events(frame):
+                        if event.get("sessionId") not in {None, session_id}:
+                            continue
+                        if event.get("type") in {
+                            "booking_confirm", "booking_verified", "effect_verified", "audio"
+                        }:
+                            continue
+                        await ws.send_json(event)
+
+                # A slow model/runtime turn must not evade the session budget
+                # just because we stopped waiting on socket.receive().
+                try:
+                    await asyncio.wait_for(
+                        deliver_events(),
+                        timeout=max(0.001, deadline - time.monotonic()),
+                    )
+                except asyncio.TimeoutError:
+                    await ws.close(code=1008, message=b"session_timeout")
+                    break
                 if kind == "end":
                     session_id = None
                     break
