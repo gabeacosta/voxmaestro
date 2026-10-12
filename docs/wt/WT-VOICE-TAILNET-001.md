@@ -85,13 +85,32 @@ localhost-only adapter; do NOT point VoxMaestro directly at 11434.
     tailscale serve status
     tailscale funnel status
 
-Only after reviewing this output, choose an **exact installed model name**
-from ollama list. No model download or default selection is performed.
+Only after reviewing this output, select the separate **qualified conversation model**
+from ollama list. The bridge uses two distinct names; no model download or default selection occurs.
+
+**Observed model qualification — October 12, 2026:** The installed
+`vsai-intent-v7:latest` returned `booking_request` correctly. But as a
+conversation generator it replied, "I can check what days you know I'm
+available." Because no availability/calendar interface exists, this is a
+**capability-truth FAIL**, not permission to continue with the same model.
+`nomic-embed-text:latest` is an embeddings model, not a chat replacement.
+
+The Ollama kernel now REQUIRES two distinct installed model names. The first
+is `vsai-intent-v7:latest`; a second conversation model must be selected,
+installed with explicit operator approval, and qualified separately. Do not
+silently use the intent model as generation fallback. For any booking or
+availability question, the kernel returns a deterministic no-availability/no-
+booking response without sending that question to the generator. The model
+output also has a limited unsupported-capability pattern guard; it is NOT
+proof that every hallucinated ability is caught. Physical microphone and
+conversation qualification are still mandatory.
 
 **In a separate foreground terminal (with the staging venv active):**
 
     cd "$HOME/voxmaestro-maya-stage"
-    python examples/serve_maya_ollama_kernel.py --model "<exact-installed-model>"
+    python examples/serve_maya_ollama_kernel.py \
+      --intent-model "vsai-intent-v7:latest" \
+      --generation-model "<separately-installed-qualified-chat-model>"
 
 The bridge confirms /api/tags contains the exact named model before listening
 at 127.0.0.1:7788. It sends NO tools, allows only read-only generation, and
