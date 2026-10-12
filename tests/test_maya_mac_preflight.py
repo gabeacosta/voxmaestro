@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 import runpy
 from pathlib import Path
-from unittest.mock import patch
 
 
 SCRIPT = runpy.run_path(
@@ -40,13 +39,9 @@ def test_uninspectable_tailscale_status_fails_closed(tmp_path):
     (site / "site" / "voxmaestro-voice-ui.mjs").write_text("export const x = true")
     (site / "voxmaestro-readonly.yaml").write_text("tools: {}\n")
 
-    with (
-        patch.dict(SCRIPT, {}),
-        patch.object(SCRIPT["subprocess"], "run"),
-    ):
-        pass  # Do not run real commands in the test.
-
     original = SCRIPT["command_output"]
+    old_bind = report.__globals__["port_bindable"]
+    old_listen = report.__globals__["tcp_listening"]
     try:
         SCRIPT["command_output"] = lambda *args: (
             False, ""
@@ -63,6 +58,8 @@ def test_uninspectable_tailscale_status_fails_closed(tmp_path):
         assert status["private_origin"] is None
     finally:
         report.__globals__["command_output"] = original
+        report.__globals__["port_bindable"] = old_bind
+        report.__globals__["tcp_listening"] = old_listen
 
 
 def test_success_output_does_not_expose_mac_dns_by_default(tmp_path):
@@ -76,6 +73,8 @@ def test_success_output_does_not_expose_mac_dns_by_default(tmp_path):
     (site / "voxmaestro-readonly.yaml").write_text("ok")
 
     original = report.__globals__["command_output"]
+    old_bind = report.__globals__["port_bindable"]
+    old_listen = report.__globals__["tcp_listening"]
     try:
         def fake(*args):
             if args[:2] == ("tailscale", "status"):
