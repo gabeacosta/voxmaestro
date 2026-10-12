@@ -13,7 +13,7 @@ from voxmaestro.integrations.tailnet_stage import (
     stage_site_files,
 )
 
-ORIGIN = "https://gabes-mini.example-tailnet.ts.net:8443"
+ORIGIN = "https://gabes-mini.example-tailnet.ts.net:10000"
 GOOD = {"Tailscale-User-Login": "alice@example.com"}
 SESSION = "session_stage_000001"
 
@@ -85,7 +85,7 @@ async def test_identity_required_for_every_static_asset(site):
             assert r.status == 200, path
             assert r.headers["X-Robots-Tag"] == "noindex, nofollow, noarchive"
             assert r.headers["Cache-Control"] == "no-store"
-            assert "wss://gabes-mini.example-tailnet.ts.net:8443" in r.headers["Content-Security-Policy"]
+            assert "wss://gabes-mini.example-tailnet.ts.net:10000" in r.headers["Content-Security-Policy"]
             assert "frame-ancestors 'none'" in r.headers["Content-Security-Policy"]
         assert (await (await client.get("/styles.css", headers=GOOD)).text()) == "body{color:white}"
         assert (await client.get("/api/secrets", headers=GOOD)).status == 404
@@ -104,7 +104,7 @@ async def test_authenticated_bootstrap_and_read_only_websocket(site):
         )).status == 401
         assert (await client.post(
             "/api/voice/bootstrap", json={},
-            headers=headers(origin="https://evil.ts.net:8443"),
+            headers=headers(origin="https://evil.ts.net:10000"),
         )).status == 403
         response = await client.post(
             "/api/voice/bootstrap", json={}, headers=headers(origin=ORIGIN),
@@ -137,12 +137,13 @@ async def test_authenticated_bootstrap_and_read_only_websocket(site):
 def test_tailnet_only_origin_policy_and_missing_files(site, tmp_path):
     assert check_tailnet_origin(ORIGIN) == ORIGIN
     for bad in (
-        "https://example.com:8443",
-        "http://gabes-mini.example-tailnet.ts.net:8443",
+        "https://example.com:10000",
+        "http://gabes-mini.example-tailnet.ts.net:10000",
         "https://gabes-mini.example-tailnet.ts.net",
         "https://gabes-mini.example-tailnet.ts.net:443",
-        "https://gabes-mini.example-tailnet.ts.net:8443/path",
-        "https://evil.ts.net:8443@attacker.example",
+        "https://gabes-mini.example-tailnet.ts.net:8443",
+        "https://gabes-mini.example-tailnet.ts.net:10000/path",
+        "https://evil.ts.net:10000@attacker.example",
     ):
         with pytest.raises(ValueError):
             check_tailnet_origin(bad)
