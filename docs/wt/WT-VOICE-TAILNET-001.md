@@ -50,6 +50,12 @@ current checkouts or mixing production branches):
 Pin the exact SHA at review signoff. A worktree alone is not evidence that the
 process launched the pinned commit.
 
+First, run the read-only host diagnostic:
+
+    python3 "$HOME/voxmaestro-maya-stage/examples/maya_mac_preflight.py"
+
+If the report says BLOCKED, do not enable Serve or launch the runtime. The report checks port 8443 allocation, local kernel status, existing files, and Tailscale availability without modifying any of them. The default output hides the tailnet hostname.
+
 Create a dedicated venv rather than modifying other Python installations:
 
     cd "$HOME/voxmaestro-maya-stage"
