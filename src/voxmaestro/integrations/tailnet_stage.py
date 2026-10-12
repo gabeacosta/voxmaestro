@@ -113,9 +113,7 @@ def make_tailnet_stage(
     async def file_view(request: Any) -> Any:
         if not authenticated(request):
             raise web.HTTPUnauthorized()
-        key = request.match_info.get("asset", "")
-        if not key:
-            key = "index.html"
+        key = request.path.lstrip("/") or "index.html"
         if key not in files:
             raise web.HTTPNotFound()
         path = files[key]
