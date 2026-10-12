@@ -92,3 +92,5 @@ def test_success_output_does_not_expose_mac_dns_by_default(tmp_path):
         assert status["checks"]["https_8443_unallocated"]
     finally:
         report.__globals__["command_output"] = original
+        report.__globals__["port_bindable"] = old_bind
+        report.__globals__["tcp_listening"] = old_listen
