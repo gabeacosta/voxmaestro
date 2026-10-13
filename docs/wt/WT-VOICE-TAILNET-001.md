@@ -232,6 +232,45 @@ port (not a global reset):
 Confirm its effect with tailscale serve status. Do **not** run
 tailscale serve reset, since it can remove unrelated services.
 
+## WT-VOICE-AUDIO-001 — native iPhone audio fallback (NOT YET HOST-QUALIFIED)
+
+Observed: real iPhone Safari receives model text but is completely silent
+despite Web Speech speechSynthesis onstart firing. These events cannot prove audible output.
+The revised frontend uses a persistent native HTML audio element with controls,
+and an authenticated same-origin WAV endpoint; playback is triggered by a user tap.
+
+Server audio paths:
+- GET /api/voice/audio-test.wav serves a bounded, deterministic 660-Hz WAV tone.
+  It requires the same validated tailnet identity as every site asset.
+- Authenticated final model replies get a random, user-bound short-lived speechId.
+  GET /api/voice/audio/<speechId> converts ONLY the actual reply to a WAV via
+  built-in macOS say/afconvert, no shell, no provider or calendar operations.
+  Safari byte-range requests are supported; no client-submitted text is rendered.
+- The browser offers Test speaker tone and Play Maya's reply, plus native
+  iPhone audio controls for direct user-gesture playback. Web Speech is NOT
+  used for automatic reply playback in the Mac audio stage.
+- The ephemeral audio registry is not a receipt or durable memory store.
+
+Read-only macOS tool check:
+
+    command -v say
+    command -v afconvert
+
+Do not restart the gateway until the exact new source commit passes CI.
+A new checkout alone does NOT update the running Python process: stop only
+the verified PID listening on 127.0.0.1:7789, then restart pinned
+serve_maya_tailnet.py at the same port with the SAME allowed-login and
+origin. Preserve the Tailscale Serve 10000 mapping; never run Serve reset,
+change 443/8443, kill other apps, or expose Funnel.
+
+Physical iPhone acceptance:
+1. Tap Test speaker tone. Audible beep MUST be heard; playing/ended is insufficient.
+2. Type a question to VoxMaestro. Receive a genuine final reply with speechId.
+3. Tap Play Maya's reply or native audio Play. Hear the exact spoken answer.
+4. If the tone works but reply fails, check the Mac speech binaries and audio endpoint status.
+5. Qualify microphone recognition separately. Safari Web Speech input remains provisional.
+6. No booking/calendar/CRM effects, no forged verification claims.
+
 ## Release policy
 
 - Live tailnet staging is not Internet production or a general user demo.
