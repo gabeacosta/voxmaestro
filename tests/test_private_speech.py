@@ -15,6 +15,9 @@ from voxmaestro.integrations.private_speech import (
 )
 from voxmaestro.integrations.tailnet_stage import make_tailnet_stage
 
+# Re-export the pre-existing fixture for pytest; also mark it as deliberately used.
+__all__ = ["site"]
+
 
 async def fixed_voice(_text: str) -> bytes:
     return speaker_probe()
