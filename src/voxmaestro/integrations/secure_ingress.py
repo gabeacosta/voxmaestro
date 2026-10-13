@@ -140,6 +140,7 @@ def create_voice_app(
     wss_url: str,
     max_messages: int = 16,
     max_session_seconds: int = 600,
+    issue_speech: Callable[[str, str], str | None] | None = None,
 ) -> Any:
     """Provide an HTTP bootstrap route and WSS route with mandatory external auth.
 
@@ -284,7 +285,18 @@ def create_voice_app(
                             "booking_confirm", "booking_verified", "effect_verified", "audio"
                         }:
                             continue
-                        await ws.send_json(event)
+                        outbound = dict(event)
+                        if (
+                            issue_speech is not None
+                            and outbound.get("type") == "response"
+                            and isinstance(outbound.get("text"), str)
+                            and isinstance(outbound.get("metadata"), dict)
+                            and outbound["metadata"].get("final") is True
+                        ):
+                            audio_id = issue_speech(principal, outbound["text"])
+                            if audio_id is not None:
+                                outbound["speechId"] = audio_id
+                        await ws.send_json(outbound)
 
                 # A slow model/runtime turn must not evade the session budget
                 # just because we stopped waiting on socket.receive().
