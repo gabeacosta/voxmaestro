@@ -18,6 +18,7 @@ from voxmaestro.integrations.secure_ingress import (
     MemoryVoiceAdmission,
     create_voice_app,
 )
+from voxmaestro.integrations.private_speech import PrivateSpeechClips, speaker_probe
 
 _LOGIN = re.compile(r"^[A-Za-z0-9_+@.:-]{3,200}$")
 _REQUIRED = (
@@ -74,6 +75,7 @@ def make_tailnet_stage(
     origin: str,
     allowed_logins: set[str],
     admission: MemoryVoiceAdmission | None = None,
+    speech_clips: PrivateSpeechClips | None = None,
 ) -> Any:
     """Create the full site, bootstrap and WSS under one tailnet TLS origin."""
     from aiohttp import web
@@ -84,6 +86,7 @@ def make_tailnet_stage(
         raise ValueError("Explicit allowed Tailscale user login(s) required")
     files = stage_site_files(site_dir)
     registry = admission or MemoryVoiceAdmission(allowed_origins={checked_origin})
+    speech = speech_clips or PrivateSpeechClips()
 
     def authenticated(request: Any) -> str | None:
         # X-Forwarded-* and user-supplied identity headers are NOT a login.
@@ -102,6 +105,7 @@ def make_tailnet_stage(
         wss_url="wss://" + urlsplit(checked_origin).netloc + "/session",
         max_messages=16,
         max_session_seconds=180,
+        issue_speech=speech.issue,
     )
     csp = (
         "default-src 'self'; script-src 'self'; style-src 'self'; "
@@ -128,6 +132,50 @@ def make_tailnet_stage(
         result.content_type = _MIME[path.suffix]
         return result
 
+    async def audio_test(request: Any) -> Any:
+        if not authenticated(request):
+            raise web.HTTPUnauthorized()
+        return web.Response(
+            body=speaker_probe(), content_type="audio/wav",
+            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+        )
+
+    async def audio_clip(request: Any) -> Any:
+        principal = authenticated(request)
+        if not principal:
+            raise web.HTTPUnauthorized()
+        data = await speech.audio(principal, request.match_info["speech_id"])
+        if not data:
+            raise web.HTTPNotFound()
+        headers = {
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+            "Accept-Ranges": "bytes",
+        }
+        # Safari frequently requests WAV using byte ranges. Bound and validate
+        # Range rather than treating audio playback as a text-only API.
+        spec = request.headers.get("Range")
+        if spec:
+            import re
+            match = re.fullmatch(r"bytes=(\d*)-(\d*)", spec)
+            if not match or (not match[1] and not match[2]):
+                raise web.HTTPRequestRangeNotSatisfiable()
+            start = int(match[1]) if match[1] else max(0, len(data) - int(match[2]))
+            end = int(match[2]) if match[2] else len(data) - 1
+            if match[1] == "":
+                end = len(data) - 1
+            if start >= len(data) or end < start:
+                raise web.HTTPRequestRangeNotSatisfiable()
+            end = min(end, len(data) - 1)
+            headers["Content-Range"] = f"bytes {start}-{end}/{len(data)}"
+            return web.Response(
+                status=206, body=data[start:end + 1],
+                content_type="audio/wav", headers=headers,
+            )
+        return web.Response(body=data, content_type="audio/wav", headers=headers)
+
+    app.router.add_get("/api/voice/audio-test.wav", audio_test)
+    app.router.add_get("/api/voice/audio/{speech_id}", audio_clip)
     app.router.add_get("/", file_view)
     for filename in _REQUIRED:
         app.router.add_get("/" + filename, file_view, name="maya-" + filename.replace("/", "-"))
