@@ -23,8 +23,8 @@ from pathlib import Path
 from typing import Awaitable, Callable, Optional
 
 _ID = re.compile(r"^[A-Za-z0-9_-]{24,96}$")
-_MAX_TEXT = 420
-_MAX_BYTES = 2_000_000
+_MAX_TEXT = 1000  # Match the Ollama bridge's bounded generated reply.
+_MAX_BYTES = 6_000_000  # About 136 seconds of mono 22.05-kHz 16-bit WAV.
 _MIN_RIFF = b"RIFF"
 _MAX_PENDING_PER_USER = 8
 
@@ -122,8 +122,13 @@ class PrivateSpeechClips:
             return None
         now = self._clock()
         self._clips = {k: v for k, v in self._clips.items() if v.expires > now}
-        if sum(v.principal == principal for v in self._clips.values()) >= _MAX_PENDING_PER_USER:
-            return None
+        # A long read-only chat must not silently lose speech forever after
+        # the eighth reply. Drop only THIS user's oldest unexpired clip;
+        # do not affect other identities or raise the memory budget.
+        same_principal = [k for k, v in self._clips.items() if v.principal == principal]
+        if len(same_principal) >= _MAX_PENDING_PER_USER:
+            oldest = min(same_principal, key=lambda key: self._clips[key].expires)
+            del self._clips[oldest]
         token = secrets.token_urlsafe(32)
         self._clips[token] = _Clip(principal, cleaned, now + self._ttl)
         return token
