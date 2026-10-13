@@ -123,7 +123,7 @@ async def test_speech_ids_expire_and_cannot_cross_principals():
     assert await store.audio("alice@example.com", key) == speaker_probe()
     clock[0] += 16
     assert await store.audio("alice@example.com", key) is None
-    assert store.issue("alice@example.com", "x" * 421) is None
+    assert store.issue("alice@example.com", "x" * 1001) is None
 
 
 @pytest.mark.asyncio
@@ -137,6 +137,93 @@ async def test_invalid_or_untrusted_audio_is_never_served():
 
 
 def test_mac_renderer_refuses_empty_or_oversized_input_without_running_subprocess():
-    for text in ("", " ", "x" * 421):
+    for text in ("", " ", "x" * 1001):
         with pytest.raises(ValueError):
             mac_speech_bytes(text)
+
+
+@pytest.mark.asyncio
+async def test_realistic_model_reply_over_old_420_limit_gets_audio_id():
+    store = PrivateSpeechClips(renderer=fixed_voice)
+    long_reply = (
+        "Maya can greet visitors, answer questions using approved "
+        "business information, qualify an inquiry, and collect "
+        "contact details for a future human review. "
+    ) * 5
+    assert 420 < len(long_reply) < 1000
+    token = store.issue("alice@example.com", long_reply)
+    assert token is not None
+    assert await store.audio("alice@example.com", token) == speaker_probe()
+
+
+@pytest.mark.asyncio
+async def test_ninth_reply_evicts_only_oldest_same_user_audio():
+    store = PrivateSpeechClips(renderer=fixed_voice)
+    other = store.issue("bob@example.com", "Separate user's audio")
+    assert other is not None
+    first_eight = [
+        store.issue("alice@example.com", f"Reply number {n}")
+        for n in range(8)
+    ]
+    assert all(first_eight)
+    newest = store.issue("alice@example.com", "Reply number 9")
+    assert newest is not None
+    assert await store.audio("alice@example.com", newest) == speaker_probe()
+    assert await store.audio("alice@example.com", first_eight[0]) is None
+    assert await store.audio("alice@example.com", first_eight[-1]) == speaker_probe()
+    assert await store.audio("bob@example.com", other) == speaker_probe()
+    assert await store.audio("bob@example.com", newest) is None
+
+
+@pytest.mark.asyncio
+async def test_real_websocket_ninth_long_reply_keeps_speech_reference(site):
+    class LongAnswerAdapter(ReadOnlyAdapter):
+        async def iter_events(self, frame):
+            if frame["type"] == "message":
+                answer = "Receptionist preview: " + ("I can discuss inquiries safely. " * 23)
+                assert 420 < len(answer) <= 1000
+                yield {
+                    "type": "response", "sessionId": frame["sessionId"],
+                    "text": answer, "metadata": {"final": True, "phase": "final"},
+                }
+            else:
+                async for event in super().iter_events(frame):
+                    yield event
+
+    adapter = LongAnswerAdapter()
+    store = PrivateSpeechClips(renderer=fixed_voice)
+    client = TestClient(TestServer(make_tailnet_stage(
+        adapter=adapter, site_dir=site, origin=ORIGIN,
+        allowed_logins={"alice@example.com"}, speech_clips=store,
+    )))
+    await client.start_server()
+    try:
+        admission = await client.post(
+            "/api/voice/bootstrap", json={}, headers=headers(origin=ORIGIN)
+        )
+        ticket = (await admission.json())["ticket"]
+        ws = await client.ws_connect(
+            "/session", headers=headers(origin=ORIGIN),
+            protocols=("voxmaestro.v1", "vsai.ticket." + ticket),
+        )
+        await ws.send_json({"type": "start", "sessionId": SESSION, "locale": "en"})
+        assert (await ws.receive_json(timeout=3))["type"] == "greeting"
+        first_id = None
+        for n in range(9):
+            await ws.send_json({
+                "type": "message", "sessionId": SESSION, "text": f"Tell me about Maya {n}",
+            })
+            frame = await ws.receive_json(timeout=3)
+            assert frame["metadata"]["final"] is True
+            assert "speechId" in frame, f"Reply {n} was missing speech ID"
+            if n == 0:
+                first_id = frame["speechId"]
+        assert (await client.get(
+            "/api/voice/audio/" + frame["speechId"], headers=GOOD
+        )).status == 200
+        assert (await client.get(
+            "/api/voice/audio/" + first_id, headers=GOOD
+        )).status == 404  # bounded retention: oldest replaced, newest works
+        await ws.close()
+    finally:
+        await client.close()
