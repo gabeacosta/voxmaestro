@@ -3,6 +3,16 @@
 All notable changes to VoxMaestro are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Added
+- Opt-in calibrated confidence for the L0 intent slot (`IntentWorker(calibration=...)`):
+  confidence is read from label-token logprobs and temperature-scaled by a pinned
+  `CalibrationArtifact`, instead of a number the model writes. Default mode unchanged.
+- `voxmaestro.workers.calibration` (stdlib-only temperature fit, ECE, artifact).
+- `examples/fit_intent_calibration.py` capture/fit harness and
+  `docs/wt/WT-VOICE-INTENT-CAL-001.md`.
+
 ## [0.1.0] — 2026-04-09
 
 ### Added
