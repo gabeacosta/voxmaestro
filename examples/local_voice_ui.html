@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Voice Maestro — Local</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --fg: #e7ecf1;
+      --muted: #8b98a5;
+      --accent: #3d8bfd;
+      --danger: #e35d6a;
+      --ok: #3dd68c;
+      --warn: #e6b84d;
+      --panel: #1a222c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1b2a3d, var(--bg));
+      color: var(--fg);
+      min-height: 100vh;
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 1.25rem 1rem 3rem;
+    }
+    h1 {
+      font-family: "IBM Plex Serif", Georgia, serif;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.25rem;
+      font-size: clamp(1.6rem, 5vw, 2.1rem);
+    }
+    .sub { color: var(--muted); margin-bottom: 1rem; font-size: 0.95rem; }
+    .row { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.85rem; align-items: end; }
+    label { font-size: 0.85rem; color: var(--muted); display: block; margin-bottom: 0.25rem; }
+    input, select, button {
+      font: inherit;
+      border-radius: 8px;
+      border: 1px solid #2c3845;
+      background: var(--panel);
+      color: var(--fg);
+      padding: 0.55rem 0.75rem;
+      min-height: 44px;
+    }
+    button {
+      cursor: pointer;
+      background: var(--accent);
+      border-color: transparent;
+      color: #fff;
+      font-weight: 600;
+    }
+    button.secondary { background: #2a3542; }
+    button.danger { background: var(--danger); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #status, #ready {
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      background: var(--panel);
+      border: 1px solid #2c3845;
+      margin-bottom: 0.75rem;
+    }
+    #phase {
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-size: 0.8rem;
+      color: var(--accent);
+      margin-bottom: 0.35rem;
+    }
+    #log {
+      height: min(42vh, 320px);
+      overflow: auto;
+      background: #0b1015;
+      border-radius: 12px;
+      border: 1px solid #2c3845;
+      padding: 1rem;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+    .dot {
+      display: inline-block;
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 50%;
+      margin-right: 0.4rem;
+      background: var(--muted);
+    }
+    .dot.live { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+    .dot.warn { background: var(--warn); }
+    .dot.err { background: var(--danger); }
+    @media (max-width: 520px) {
+      .row > div { width: 100%; }
+      input, select, button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Voice Maestro</h1>
+    <p class="sub">Local mic → Whisper → Ollama → Kokoro → speaker. No cloud required.</p>
+
+    <div id="ready"><span class="dot" id="readyDot"></span><span id="readyText">checking readiness…</span></div>
+
+    <div class="row">
+      <div>
+        <label for="wsUrl">WebSocket</label>
+        <input id="wsUrl" size="28" value="ws://127.0.0.1:7780" />
+      </div>
+      <div>
+        <label for="locale">Locale</label>
+        <select id="locale">
+          <option value="en">en</option>
+          <option value="es">es</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <button id="btnStart">Start session</button>
+      <button id="btnMic" class="secondary" disabled>Enable mic</button>
+      <button id="btnStop" class="danger" disabled>End</button>
+    </div>
+
+    <div id="status">
+      <div id="phase">Idle</div>
+      <span class="dot" id="dot"></span><span id="statusText">idle</span>
+    </div>
+    <div id="log"></div>
+  </main>
+
+  <script>
+    const logEl = document.getElementById("log");
+    const statusText = document.getElementById("statusText");
+    const phaseEl = document.getElementById("phase");
+    const dot = document.getElementById("dot");
+    const readyDot = document.getElementById("readyDot");
+    const readyText = document.getElementById("readyText");
+    const btnStart = document.getElementById("btnStart");
+    const btnMic = document.getElementById("btnMic");
+    const btnStop = document.getElementById("btnStop");
+
+    let ws = null;
+    let sessionId = null;
+    let audioCtx = null;
+    let micStream = null;
+    let processor = null;
+    let micSource = null;
+    let playing = [];
+    let currentTurn = null;
+    let lastTranscriptKey = null;
+    let phase = "Idle";
+
+    function setPhase(name) {
+      phase = name;
+      phaseEl.textContent = name;
+    }
+
+    function log(line) {
+      logEl.textContent += line + "\n";
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function setStatus(text, mode) {
+      statusText.textContent = text;
+      dot.className = "dot" + (mode === "live" ? " live" : mode === "warn" ? " warn" : mode === "err" ? " err" : "");
+    }
+
+    async function refreshReady() {
+      try {
+        const res = await fetch("/readyz", { cache: "no-store" });
+        const data = await res.json();
+        const ok = !!data.ready;
+        readyDot.className = "dot " + (ok ? "live" : data.state === "DEGRADED" ? "warn" : "err");
+        readyText.textContent = `runtime ${data.state} · ready=${ok}` +
+          (data.diagnostics && data.diagnostics.length ? ` · ${data.diagnostics[0]}` : "");
+      } catch (err) {
+        readyDot.className = "dot warn";
+        readyText.textContent = "readiness endpoint unavailable (UI-only host?)";
+      }
+    }
+    refreshReady();
+    setInterval(refreshReady, 5000);
+
+    function floatTo16BitPCM(float32) {
+      const out = new Int16Array(float32.length);
+      for (let i = 0; i < float32.length; i++) {
+        const s = Math.max(-1, Math.min(1, float32[i]));
+        out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      }
+      return out;
+    }
+
+    function downsampleTo16k(float32, inRate) {
+      if (inRate === 16000) return float32;
+      const ratio = inRate / 16000;
+      const newLen = Math.floor(float32.length / ratio);
+      const result = new Float32Array(newLen);
+      for (let i = 0; i < newLen; i++) {
+        result[i] = float32[Math.floor(i * ratio)];
+      }
+      return result;
+    }
+
+    function pcmF32FromB64(b64) {
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return new Float32Array(bytes.buffer);
+    }
+
+    async function playPcmF32(pcm, sampleRate, turnId) {
+      if (!audioCtx) audioCtx = new AudioContext();
+      if (currentTurn && turnId && turnId !== currentTurn) {
+        playing.forEach((s) => { try { s.stop(); } catch (_) {} });
+        playing = [];
+        setPhase("Interrupted");
+      }
+      currentTurn = turnId || currentTurn;
+      setPhase("Speaking");
+      const buffer = audioCtx.createBuffer(1, pcm.length, sampleRate);
+      buffer.copyToChannel(pcm, 0);
+      const src = audioCtx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(audioCtx.destination);
+      src.start();
+      playing.push(src);
+      src.onended = () => {
+        playing = playing.filter((s) => s !== src);
+        if (!playing.length && phase === "Speaking") setPhase("Listening");
+      };
+    }
+
+    function flushPlayback() {
+      playing.forEach((s) => { try { s.stop(); } catch (_) {} });
+      playing = [];
+      currentTurn = null;
+    }
+
+    function logTranscriptOnce(kind, text) {
+      const key = kind + ":" + text;
+      if (key === lastTranscriptKey) return;
+      lastTranscriptKey = key;
+      log(kind + ": " + text);
+    }
+
+    btnStart.onclick = async () => {
+      const url = document.getElementById("wsUrl").value.trim();
+      const locale = document.getElementById("locale").value;
+      sessionId = "local-" + crypto.randomUUID().slice(0, 8);
+      ws = new WebSocket(url);
+      ws.binaryType = "arraybuffer";
+      setPhase("Connecting");
+      setStatus("connecting…", "live");
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "start", sessionId, locale }));
+        setStatus("connected · " + sessionId, "live");
+        setPhase("Listening");
+        btnStart.disabled = true;
+        btnMic.disabled = false;
+        btnStop.disabled = false;
+        log("start " + sessionId + " locale=" + locale);
+      };
+      ws.onmessage = async (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch (_) {
+          log("non-json frame");
+          return;
+        }
+        if (msg.type === "audio" && msg.pcmB64) {
+          if (msg.seq === 0) flushPlayback();
+          const pcm = pcmF32FromB64(msg.pcmB64);
+          await playPcmF32(pcm, msg.sampleRate || 24000, msg.turnId);
+          return;
+        }
+        if (msg.type === "greeting" || msg.type === "response") {
+          setPhase(msg.metadata && msg.metadata.phase === "filler" ? "Thinking" : "Thinking");
+          logTranscriptOnce(msg.type, msg.text || "");
+          return;
+        }
+        if (msg.type === "transcript_partial") {
+          setPhase("Listening");
+          logTranscriptOnce("transcript", msg.text || "");
+          return;
+        }
+        if (msg.type === "error") {
+          log("error: " + msg.text);
+          setStatus(msg.text, "err");
+          setPhase("Error");
+          return;
+        }
+        log(JSON.stringify(msg));
+      };
+      ws.onclose = () => {
+        setStatus("disconnected — recoverable: Start again", "err");
+        setPhase("Disconnected");
+        btnStart.disabled = false;
+        btnMic.disabled = true;
+        btnStop.disabled = true;
+      };
+      ws.onerror = () => {
+        setStatus("websocket error — check gateway", "err");
+        setPhase("Error");
+      };
+    };
+
+    btnMic.onclick = async () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      audioCtx = audioCtx || new AudioContext();
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micSource = audioCtx.createMediaStreamSource(micStream);
+      processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      processor.onaudioprocess = (e) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        if (phase === "Speaking") {
+          // User speech during playback → UI barge-in signal
+          setPhase("Interrupted");
+          flushPlayback();
+        } else if (phase !== "Interrupted") {
+          setPhase("Listening");
+        }
+        const input = e.inputBuffer.getChannelData(0);
+        const down = downsampleTo16k(input, audioCtx.sampleRate);
+        const pcm16 = floatTo16BitPCM(down);
+        ws.send(pcm16.buffer);
+      };
+      const silent = audioCtx.createGain();
+      silent.gain.value = 0;
+      micSource.connect(processor);
+      processor.connect(silent);
+      silent.connect(audioCtx.destination);
+      btnMic.disabled = true;
+      log("mic streaming @ " + audioCtx.sampleRate + " → 16 kHz int16");
+      setStatus("mic live", "live");
+      setPhase("Listening");
+    };
+
+    btnStop.onclick = () => {
+      if (ws && ws.readyState === WebSocket.OPEN && sessionId) {
+        ws.send(JSON.stringify({ type: "end", sessionId }));
+        ws.close();
+      }
+      if (processor) { try { processor.disconnect(); } catch (_) {} }
+      if (micSource) { try { micSource.disconnect(); } catch (_) {} }
+      if (micStream) micStream.getTracks().forEach((t) => t.stop());
+      flushPlayback();
+      setStatus("ended", "");
+      setPhase("Idle");
+      btnStart.disabled = false;
+      btnMic.disabled = true;
+      btnStop.disabled = true;
+    };
+  </script>
+</body>
+</html>

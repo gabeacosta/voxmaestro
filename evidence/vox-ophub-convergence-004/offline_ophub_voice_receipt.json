@@ -1,0 +1,72 @@
+{
+  "mission": "VOX-OPHUB-CONVERGENCE-004",
+  "started_at": "2026-11-16T15:22:08Z",
+  "ophub_url": "http://127.0.0.1:8899",
+  "fixture": "tests/fixtures/ophub_owner_workspace_fixture.json",
+  "speak": false,
+  "turns": [
+    {
+      "query": "Which agents are running?",
+      "intent": "agents_running",
+      "status": "STALE",
+      "spoken": "Warning: this Operator Hub snapshot may be stale. No independently observed running sessions. Running state is unknown without independent session evidence. Installed agents in inventory: codex, claude, grok, cursor.",
+      "answer_latency_ms": 0.9579169563949108,
+      "workspace": {
+        "schema": "operator_hub.owner_workspace.v1",
+        "ok": true,
+        "fetched_at": "2026-11-16T15:00:00Z"
+      }
+    },
+    {
+      "query": "What is Codex working on?",
+      "intent": "codex_task",
+      "status": "STALE",
+      "spoken": "Warning: this Operator Hub snapshot may be stale. Codex active task is unknown. No independently observed session evidence is available.",
+      "answer_latency_ms": 0.0989171676337719,
+      "workspace": {
+        "schema": "operator_hub.owner_workspace.v1",
+        "ok": true,
+        "fetched_at": "2026-11-16T15:00:00Z"
+      }
+    },
+    {
+      "query": "Show my active tasks.",
+      "intent": "active_tasks",
+      "status": "STALE",
+      "spoken": "Warning: this Operator Hub snapshot may be stale. No independently observed active tasks. Active work remains unknown without session receipts.",
+      "answer_latency_ms": 0.05612499080598354,
+      "workspace": {
+        "schema": "operator_hub.owner_workspace.v1",
+        "ok": true,
+        "fetched_at": "2026-11-16T15:00:00Z"
+      }
+    },
+    {
+      "query": "Which agents are blocked?",
+      "intent": "agents_blocked",
+      "status": "STALE",
+      "spoken": "Warning: this Operator Hub snapshot may be stale. Not installed: antigravity. Fleet blockers: AGENT_BURN_JOIN_FEATURE_OFF; CPU_MEM_PIDS_STRESS_NOT_CLAIMED; NOT_MERGED; STALE_PR_HEAD; TIP_DRIFT_DOCS_ONLY_VS_REVIEWED_HEAD.",
+      "answer_latency_ms": 0.05141599103808403,
+      "workspace": {
+        "schema": "operator_hub.owner_workspace.v1",
+        "ok": true,
+        "fetched_at": "2026-11-16T15:00:00Z"
+      }
+    },
+    {
+      "query": "What has been independently verified?",
+      "intent": "independently_verified",
+      "status": "STALE",
+      "spoken": "Warning: this Operator Hub snapshot may be stale. Recorded verification markers exist for FLEET-004, FLEET-005, FLEET-006, but independent GitHub observation is unknown.",
+      "answer_latency_ms": 0.04675006493926048,
+      "workspace": {
+        "schema": "operator_hub.owner_workspace.v1",
+        "ok": true,
+        "fetched_at": "2026-11-16T15:00:00Z"
+      }
+    }
+  ],
+  "owner_gateway_7780_touched": false,
+  "finished_at": "2026-11-16T15:22:08Z",
+  "status": "PASS"
+}

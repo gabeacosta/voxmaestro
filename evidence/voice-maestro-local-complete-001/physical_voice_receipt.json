@@ -1,0 +1,34 @@
+{
+  "mission": "VOICE-MAESTRO-LOCAL-COMPLETE-001",
+  "started_at": "2026-11-16T05:38:38Z",
+  "devices": "  0 ES-G32C3F, Core Audio (0 in, 2 out)\n  1 ES-G32C3F, Core Audio (0 in, 2 out)\n> 2 CMTECK, Core Audio (1 in, 0 out)\n< 3 Mac mini Speakers, Core Audio (0 in, 2 out)",
+  "tts": {
+    "backend_id": "kokoro-http",
+    "backend_version": "kokoro-onnx",
+    "voice": "bm_george"
+  },
+  "asr": {
+    "backend_id": "faster-whisper",
+    "model": "base"
+  },
+  "llm": {
+    "model": "qwen3:latest",
+    "endpoint": "http://127.0.0.1:11434"
+  },
+  "turns": [
+    {
+      "turn_id": "physical-1",
+      "status": "PASS",
+      "transcript": "No voice, my scroll. What can you do today?",
+      "reply": "I'm here to help with any tasks you need, just let me know how I can assist you today!",
+      "asr_ms": 3001.677541062236,
+      "llm_ms": 6808.870916021988,
+      "tts_chunks": 131,
+      "ttfa_proxy_ms": 5095.596457947977,
+      "mic_wav": "/Users/clue/voxmaestro-local-complete-001/evidence/voice-maestro-local-complete-001/physical-1-mic.wav"
+    }
+  ],
+  "status": "PASS",
+  "verification_class": "PHYSICAL_MIC_SPEAKER",
+  "finished_at": "2026-11-16T05:39:11Z"
+}

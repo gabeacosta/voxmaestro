@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Voice Maestro — Owner Workspace (read-only)</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --ink: #e8eef5;
+      --muted: #8b9aab;
+      --line: #2a3542;
+      --accent: #3d7ea6;
+      --warn: #c47a3a;
+      --ok: #3f8f6b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+      background: radial-gradient(1200px 600px at 20% -10%, #1a2836, var(--bg));
+      color: var(--ink);
+      min-height: 100vh;
+    }
+    main { max-width: 720px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+    h1 { font-size: 2rem; margin: 0 0 0.35rem; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); margin: 0 0 1.5rem; font-size: 0.95rem; }
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
+    input, select, button, textarea {
+      font: inherit;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #121a22;
+      color: var(--ink);
+      padding: 0.65rem 0.75rem;
+      width: 100%;
+    }
+    .row { display: grid; gap: 0.75rem; margin-bottom: 1rem; }
+    @media (min-width: 640px) {
+      .row.two { grid-template-columns: 1fr 1fr; }
+    }
+    .btns { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0 1rem; }
+    .btns button {
+      width: auto;
+      cursor: pointer;
+      background: #182230;
+    }
+    .btns button.primary { background: var(--accent); border-color: transparent; color: #fff; }
+    #status {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.65rem 0.75rem; border: 1px solid var(--line); border-radius: 8px;
+      margin-bottom: 1rem; color: var(--muted); font-size: 0.9rem;
+    }
+    .dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: #556; }
+    .dot.live { background: var(--ok); }
+    .dot.warn { background: var(--warn); }
+    .dot.err { background: #a33; }
+    #log {
+      border: 1px solid var(--line); border-radius: 10px; min-height: 220px;
+      padding: 0.85rem; background: #0b1015; white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem;
+    }
+    .note { margin-top: 1rem; color: var(--muted); font-size: 0.85rem; line-height: 1.45; }
+    a { color: #7eb6d8; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Voice Maestro</h1>
+    <p class="sub">Read-only owner workspace voice · Whisper → Ollama → Kokoro · no dispatch</p>
+
+    <div class="row two">
+      <div>
+        <label for="ophub">Operator Hub base URL</label>
+        <input id="ophub" value="http://127.0.0.1:8899" />
+      </div>
+      <div>
+        <label for="intent">Quick query</label>
+        <select id="intent">
+          <option>Which agents are running?</option>
+          <option>What is Codex working on?</option>
+          <option>Show my active tasks.</option>
+          <option>Which agents are blocked?</option>
+          <option>What has been independently verified?</option>
+        </select>
+      </div>
+    </div>
+
+    <label for="q">Spoken / typed question</label>
+    <textarea id="q" rows="2">Which agents are running?</textarea>
+
+    <div class="btns">
+      <button class="primary" id="ask" type="button">Ask (read-only)</button>
+      <button id="probe" type="button">Probe OpHub</button>
+      <button id="fill" type="button">Use quick query</button>
+    </div>
+
+    <div id="status"><span class="dot" id="dot"></span><span id="statusText">idle</span></div>
+    <div id="log"></div>
+    <p class="note">
+      This page only GETs <code>/api/v1/owner-workspace</code>. It does not merge, deploy, or dispatch.
+      Open the visual workspace at
+      <a id="wsLink" href="http://127.0.0.1:8899/owner-workspace" target="_blank" rel="noreferrer">/owner-workspace</a>.
+      Owner VoxMaestro gateway on <code>:7780</code> is left untouched.
+    </p>
+  </main>
+  <script>
+    const logEl = document.getElementById("log");
+    const dot = document.getElementById("dot");
+    const statusText = document.getElementById("statusText");
+    const ophub = document.getElementById("ophub");
+    const q = document.getElementById("q");
+    const intent = document.getElementById("intent");
+
+    function setStatus(kind, text) {
+      dot.className = "dot " + (kind || "");
+      statusText.textContent = text;
+    }
+    function append(line) {
+      logEl.textContent += line + "\n";
+    }
+
+    document.getElementById("fill").onclick = () => {
+      q.value = intent.value;
+    };
+    document.getElementById("probe").onclick = async () => {
+      const base = ophub.value.replace(/\/$/, "");
+      document.getElementById("wsLink").href = base + "/owner-workspace";
+      setStatus("warn", "probing…");
+      try {
+        const res = await fetch(base + "/api/v1/owner-workspace", { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        setStatus("live", "OpHub reachable · schema=" + (data.schema || "?") + " · ok=" + data.ok);
+        append("probe ok agents=" + ((data.agents && data.agents.agents) || []).length);
+      } catch (err) {
+        setStatus("err", "OpHub unavailable");
+        append("probe fail: " + err);
+      }
+    };
+
+    // Browser cannot import Python; this UI mirrors grounding rules for display-only.
+    function classify(text) {
+      const t = text.toLowerCase();
+      if (/which agents are running|agents running|who is running/.test(t)) return "agents_running";
+      if (/what is codex working on|codex working/.test(t)) return "codex_task";
+      if (/active tasks|my tasks/.test(t)) return "active_tasks";
+      if (/agents are blocked|who is blocked|blocker/.test(t)) return "agents_blocked";
+      if (/independently verified|verified/.test(t)) return "independently_verified";
+      if (/merge|deploy|dispatch/.test(t)) return "unsupported_or_governance";
+      return "unsupported_or_governance";
+    }
+
+    function render(intentName, data) {
+      const agents = (data.agents && data.agents.agents) || [];
+      if (intentName === "unsupported_or_governance") {
+        return "I cannot merge, deploy, or dispatch from voice. This interface is read-only.";
+      }
+      if (intentName === "agents_running") {
+        const running = agents.filter(a => a.independently_observed_session && /^(RUNNING|ACTIVE|BUSY)$/i.test(a.running_state || ""));
+        if (running.length) return "Independently observed running agents: " + running.map(a => a.runtime).join(", ") + ".";
+        const installed = agents.filter(a => (a.availability || "").toUpperCase() === "INSTALLED").map(a => a.runtime);
+        return "No independently observed running sessions. Running state is unknown without independent session evidence."
+          + (installed.length ? " Installed agents in inventory: " + installed.join(", ") + "." : "");
+      }
+      if (intentName === "codex_task") {
+        const codex = agents.find(a => a.runtime === "codex");
+        if (!codex) return "Codex is unknown in the owner workspace projection.";
+        if (codex.active_task && codex.independently_observed_session) return "Codex is working on " + codex.active_task + ".";
+        return "Codex active task is unknown. No independently observed session evidence is available.";
+      }
+      if (intentName === "active_tasks") {
+        return "No independently observed active tasks. Active work remains unknown without session receipts.";
+      }
+      if (intentName === "agents_blocked") {
+        const missing = agents.filter(a => (a.availability || "").toUpperCase() === "NOT_INSTALLED").map(a => a.runtime);
+        const blockers = (data.fleet_burn && data.fleet_burn.blockers) || [];
+        const parts = [];
+        if (missing.length) parts.push("Not installed: " + missing.join(", ") + ".");
+        if (blockers.length) parts.push("Fleet blockers: " + blockers.slice(0, 5).join("; ") + ".");
+        if (!parts.length) parts.push("No explicit agent blockers are recorded; blocked status is otherwise unknown.");
+        return parts.join(" ");
+      }
+      if (intentName === "independently_verified") {
+        const display = data.commit_evidence_display || {};
+        return "Independently verified work is unknown on this snapshot. Commit evidence status is "
+          + (display.status || "UNKNOWN") + ".";
+      }
+      return "I can only answer read-only owner workspace questions.";
+    }
+
+    document.getElementById("ask").onclick = async () => {
+      const base = ophub.value.replace(/\/$/, "");
+      const question = q.value.trim();
+      const intentName = classify(question);
+      setStatus("warn", "fetching owner-workspace…");
+      append("Q: " + question);
+      append("intent: " + intentName);
+      try {
+        const res = await fetch(base + "/api/v1/owner-workspace", { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        const spoken = render(intentName, data);
+        setStatus("live", "answered · schema=" + (data.schema || "?"));
+        append("A: " + spoken);
+        append("---");
+      } catch (err) {
+        setStatus("err", "disconnected");
+        append("A: Operator Hub is unavailable, so I cannot verify agent state.");
+        append("---");
+      }
+    };
+  </script>
+</body>
+</html>
