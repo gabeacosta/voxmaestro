@@ -1,0 +1,17 @@
+[2026-11-15 21:38:38.356] [ctranslate2] [thread 31374886] [warning] Tip: experimental MPS backend is available and often 2x+ faster than CPU on Apple Silicon (varies by workload and hardware). Try device="mps".
+[2026-11-15 21:38:38.357] [ctranslate2] [thread 31374886] [warning] The compute type inferred from the saved model is float16, but the target device or backend do not support efficient float16 computation. The model weights have been automatically converted to use the float32 compute type instead.
+devices:
+   0 ES-G32C3F, Core Audio (0 in, 2 out)
+  1 ES-G32C3F, Core Audio (0 in, 2 out)
+> 2 CMTECK, Core Audio (1 in, 0 out)
+< 3 Mac mini Speakers, Core Audio (0 in, 2 out)
+tts kokoro-http kokoro-onnx
+loading whisper (first run may download weights)…
+asr faster-whisper 1.2.1
+self-stimulus via Kokoro→speakers: 'Hello Voice Maestro, what can you do today?'
+recording 6.0s with speaker stimulus (3.01s audio)
+transcript='No voice, my scroll. What can you do today?' asr_ms=3001.7
+reply="I'm here to help with any tasks you need, just let me know how I can assist you today!" llm_ms=6808.9
+tts_chunks=131 ttfa_proxy_ms=5095.6
+playing reply on default output…
+PASS evidence=/Users/clue/voxmaestro-local-complete-001/evidence/voice-maestro-local-complete-001/physical_voice_receipt.json
