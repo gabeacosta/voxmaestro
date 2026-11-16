@@ -56,7 +56,7 @@ class KokoroClient(Protocol):
 class HttpKokoroClient:
     """urllib client for the local OpenAI-compatible Kokoro server."""
 
-    def __init__(self, base_url: str = DEFAULT_BASE_URL, timeout_s: float = 120.0) -> None:
+    def __init__(self, base_url: str = DEFAULT_BASE_URL, timeout_s: float = 180.0) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout_s = timeout_s
 
@@ -169,9 +169,12 @@ class KokoroTTSBackend:
         chunk_samples: int = DEFAULT_CHUNK_SAMPLES,
         rss_fn: Callable[[], int] | None = None,
         sample_rate: int = 24000,
+        http_timeout_s: float = 180.0,
     ) -> None:
         """Probe the service and freeze the capability surface."""
-        self._client: KokoroClient = client or HttpKokoroClient(base_url)
+        self._client: KokoroClient = client or HttpKokoroClient(
+            base_url, timeout_s=http_timeout_s
+        )
         self._default_voice = default_voice
         self._chunk_samples = chunk_samples
         self._sample_rate = sample_rate
