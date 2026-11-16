@@ -1,0 +1,39 @@
+kokoro model=kokoro-onnx voice=bm_george
+ollama models=4
+[2026-11-16 00:54:15.918] [ctranslate2] [thread 32021576] [warning] Tip: experimental MPS backend is available and often 2x+ faster than CPU on Apple Silicon (varies by workload and hardware). Try device="mps".
+[2026-11-16 00:54:15.920] [ctranslate2] [thread 32021576] [warning] The compute type inferred from the saved model is float16, but the target device or backend do not support efficient float16 computation. The model weights have been automatically converted to use the float32 compute type instead.
+endurance-1 PASS asr=3833 llm=12227 ttfa=9842 e2e=42912 recovery=0
+endurance-2 empty_transcript recovery attempt=1
+endurance-2 PASS asr=3606 llm=5963 ttfa=5406 e2e=55469 recovery=1
+endurance-3 PASS asr=716 llm=12598 ttfa=2668 e2e=29086 recovery=0
+endurance-4 PASS asr=2980 llm=10053 ttfa=2373 e2e=25344 recovery=0
+endurance-5 PASS asr=3384 llm=4130 ttfa=2739 e2e=22195 recovery=0
+endurance-6 PASS asr=3018 llm=7801 ttfa=2674 e2e=25565 recovery=0
+endurance-7 PASS asr=3792 llm=5395 ttfa=2628 e2e=22923 recovery=0
+endurance-8 PASS asr=6019 llm=12645 ttfa=2422 e2e=33633 recovery=0
+endurance-9 PASS asr=3281 llm=6929 ttfa=1952 e2e=24108 recovery=0
+endurance-10 empty_transcript recovery attempt=1
+endurance-10 empty_transcript recovery attempt=2
+endurance-10 FAIL empty_transcript
+endurance-11 PASS asr=3880 llm=20928 ttfa=3101 e2e=40454 recovery=0
+endurance-12 PASS asr=3283 llm=5362 ttfa=2884 e2e=23148 recovery=0
+endurance-13 PASS asr=3514 llm=18828 ttfa=3569 e2e=39181 recovery=0
+endurance-14 PASS asr=5423 llm=18425 ttfa=2544 e2e=38037 recovery=0
+endurance-15 PASS asr=3080 llm=10684 ttfa=9363 e2e=34605 recovery=0
+endurance-16 PASS asr=3594 llm=6508 ttfa=3334 e2e=26572 recovery=0
+endurance-17 PASS asr=3389 llm=5719 ttfa=2083 e2e=22292 recovery=0
+endurance-18 PASS asr=3026 llm=7017 ttfa=3030 e2e=26710 recovery=0
+endurance-19 PASS asr=3485 llm=21098 ttfa=1878 e2e=36424 recovery=0
+endurance-20 PASS asr=3003 llm=4657 ttfa=2289 e2e=22031 recovery=0
+{
+  "asr_ms_p50": 3389.414916979149,
+  "asr_ms_p95": 5482.833649998064,
+  "llm_ms_p50": 7800.846124999225,
+  "llm_ms_p95": 20945.218066102825,
+  "first_audio_ms_p50": 2674.3802500423044,
+  "first_audio_ms_p95": 9410.936095938085,
+  "e2e_ms_p50": 26709.90716596134,
+  "e2e_ms_p95": 44167.41299140264,
+  "mean_e2e_ms": 31088.99430472306
+}
+status=FAIL success_rate=0.95

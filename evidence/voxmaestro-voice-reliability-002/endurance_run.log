@@ -1,0 +1,47 @@
+[2026-11-16 00:27:41.548] [ctranslate2] [thread 31859163] [warning] Tip: experimental MPS backend is available and often 2x+ faster than CPU on Apple Silicon (varies by workload and hardware). Try device="mps".
+[2026-11-16 00:27:41.548] [ctranslate2] [thread 31859163] [warning] The compute type inferred from the saved model is float16, but the target device or backend do not support efficient float16 computation. The model weights have been automatically converted to use the float32 compute type instead.
+/Users/clue/voxmaestro-local-complete-001/examples/run_physical_endurance.py:97: RuntimeWarning: invalid value encountered in cast
+  pcm16 = (np.clip(audio, -1, 1) * 32767).astype(np.int16)
+/Users/clue/voxmaestro-local-complete-001/examples/run_physical_endurance.py:220: RuntimeWarning: invalid value encountered in cast
+  pcm16 = (np.clip(audio, -1, 1) * 32767).astype(np.int16).tobytes()
+/Users/clue/voxmaestro-local-complete-001/examples/run_physical_endurance.py:97: RuntimeWarning: invalid value encountered in multiply
+  pcm16 = (np.clip(audio, -1, 1) * 32767).astype(np.int16)
+/Users/clue/voxmaestro-local-complete-001/examples/run_physical_endurance.py:220: RuntimeWarning: invalid value encountered in multiply
+  pcm16 = (np.clip(audio, -1, 1) * 32767).astype(np.int16).tobytes()
+/Users/clue/voxmaestro-local-complete-001/examples/run_physical_endurance.py:222: RuntimeWarning: invalid value encountered in cast
+  speech_detected = float(np.sqrt(np.mean(audio.astype(np.float64) ** 2))) > 0.01
+kokoro model=kokoro-onnx voice=bm_george
+ollama models=4
+endurance-1 PASS asr=2889 llm=48136 ttfa=7680 e2e=70075 recovery=0
+endurance-2 PASS asr=3907 llm=5939 ttfa=2691 e2e=23991 recovery=0
+endurance-3 PASS asr=3546 llm=10424 ttfa=2905 e2e=28066 recovery=0
+endurance-4 FAIL empty_transcript
+endurance-5 PASS asr=3664 llm=5881 ttfa=3867 e2e=24059 recovery=0
+endurance-6 stim retry after kokoro synthesize failed: timed out
+endurance-6 PASS asr=9401 llm=48474 ttfa=60443 e2e=601978 recovery=1
+endurance-7 PASS asr=18215 llm=42889 ttfa=38092 e2e=317692 recovery=1
+endurance-8 PASS asr=17859 llm=22463 ttfa=40299 e2e=108656 recovery=0
+endurance-9 PASS asr=6064 llm=5477 ttfa=7968 e2e=35001 recovery=0
+endurance-10 PASS asr=1196 llm=3917 ttfa=2412 e2e=19090 recovery=0
+endurance-11 PASS asr=4061 llm=10071 ttfa=6603 e2e=34248 recovery=0
+endurance-12 PASS asr=1431 llm=5651 ttfa=1547 e2e=18958 recovery=0
+endurance-13 PASS asr=6914 llm=11768 ttfa=10158 e2e=40634 recovery=0
+endurance-14 PASS asr=4985 llm=9806 ttfa=4347 e2e=31351 recovery=0
+endurance-15 PASS asr=760 llm=4937 ttfa=2961 e2e=19568 recovery=0
+endurance-16 PASS asr=3327 llm=20746 ttfa=4651 e2e=39470 recovery=0
+endurance-17 PASS asr=1651 llm=6163 ttfa=3544 e2e=23266 recovery=0
+endurance-18 PASS asr=15382 llm=12295 ttfa=2973 e2e=41845 recovery=0
+endurance-19 PASS asr=4445 llm=22092 ttfa=2771 e2e=39910 recovery=0
+endurance-20 PASS asr=3325 llm=5528 ttfa=2256 e2e=21480 recovery=0
+{
+  "asr_ms_p50": 3906.790207955055,
+  "asr_ms_p95": 17894.584121077787,
+  "llm_ms_p50": 10071.001666947268,
+  "llm_ms_p95": 48170.01916691661,
+  "first_audio_ms_p50": 3866.6709170211107,
+  "first_audio_ms_p95": 42313.566300622144,
+  "e2e_ms_p50": 34247.796374955215,
+  "e2e_ms_p95": 346120.2391292312,
+  "mean_e2e_ms": 81017.65559652305
+}
+status=FAIL success_rate=0.95
