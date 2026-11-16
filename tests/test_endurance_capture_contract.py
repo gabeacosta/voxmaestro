@@ -9,6 +9,7 @@ evidence/voxmaestro-voice-reliability-002/ENDURANCE_CLOSURE_003_FAILURE_ANALYSIS
 from __future__ import annotations
 
 import sys
+import types
 import wave
 from pathlib import Path
 
@@ -19,6 +20,14 @@ ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / "examples"
 EVIDENCE = ROOT / "evidence" / "voxmaestro-voice-reliability-002"
 sys.path.insert(0, str(EXAMPLES))
+
+# This contract test only needs pure capture/transcript helpers. The example
+# module imports sounddevice at top level, which requires PortAudio and is not
+# available on CI runners — stub it so collection does not need hardware audio.
+if "sounddevice" not in sys.modules:
+    _sounddevice_stub = types.ModuleType("sounddevice")
+    _sounddevice_stub.CallbackStop = type("CallbackStop", (Exception,), {})
+    sys.modules["sounddevice"] = _sounddevice_stub
 
 from run_physical_endurance import (  # noqa: E402
     _audio_coverage_ratio,
