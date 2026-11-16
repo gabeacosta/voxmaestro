@@ -1,0 +1,97 @@
+{
+  "mission": "VOX-OPHUB-CONVERGENCE-004",
+  "started_at": "2026-11-16T15:22:08Z",
+  "ophub_url": "http://127.0.0.1:8899",
+  "fixture": null,
+  "speak": true,
+  "turns": [
+    {
+      "query": "Which agents are running?",
+      "intent": "agents_running",
+      "status": "OK",
+      "spoken": "No independently observed running sessions. Running state is unknown without independent session evidence. Installed agents in inventory: codex, claude, grok, cursor.",
+      "answer_latency_ms": 19.251917023211718,
+      "workspace": {
+        "schema": "operator_hub.owner_workspace.v1",
+        "ok": true,
+        "fetched_at": "2026-11-16T15:22:08Z",
+        "source_url": "http://127.0.0.1:8899/api/v1/owner-workspace"
+      },
+      "tts": {
+        "tts_chunks": 303,
+        "ttfa_ms": 7580.575332976878
+      }
+    },
+    {
+      "query": "What is Codex working on?",
+      "intent": "codex_task",
+      "status": "OK",
+      "spoken": "Codex active task is unknown. No independently observed session evidence is available.",
+      "answer_latency_ms": 9.747958043590188,
+      "workspace": {
+        "schema": "operator_hub.owner_workspace.v1",
+        "ok": true,
+        "fetched_at": "2026-11-16T15:22:28Z",
+        "source_url": "http://127.0.0.1:8899/api/v1/owner-workspace"
+      },
+      "tts": {
+        "tts_chunks": 164,
+        "ttfa_ms": 2493.2035841047764
+      }
+    },
+    {
+      "query": "Show my active tasks.",
+      "intent": "active_tasks",
+      "status": "OK",
+      "spoken": "No independently observed active tasks. Active work remains unknown without session receipts.",
+      "answer_latency_ms": 5.20283286459744,
+      "workspace": {
+        "schema": "operator_hub.owner_workspace.v1",
+        "ok": true,
+        "fetched_at": "2026-11-16T15:22:38Z",
+        "source_url": "http://127.0.0.1:8899/api/v1/owner-workspace"
+      },
+      "tts": {
+        "tts_chunks": 170,
+        "ttfa_ms": 2730.0108338240534
+      }
+    },
+    {
+      "query": "Which agents are blocked?",
+      "intent": "agents_blocked",
+      "status": "OK",
+      "spoken": "Not installed: antigravity. Fleet blockers: AGENT_BURN_JOIN_FEATURE_OFF; CPU_MEM_PIDS_STRESS_NOT_CLAIMED; NOT_MERGED; STALE_PR_HEAD; TIP_DRIFT_DOCS_ONLY_VS_REVIEWED_HEAD.",
+      "answer_latency_ms": 8.063625078648329,
+      "workspace": {
+        "schema": "operator_hub.owner_workspace.v1",
+        "ok": true,
+        "fetched_at": "2026-11-16T15:22:47Z",
+        "source_url": "http://127.0.0.1:8899/api/v1/owner-workspace"
+      },
+      "tts": {
+        "tts_chunks": 341,
+        "ttfa_ms": 4186.663249973208
+      }
+    },
+    {
+      "query": "What has been independently verified?",
+      "intent": "independently_verified",
+      "status": "OK",
+      "spoken": "Recorded verification markers exist for FLEET-004, FLEET-005, FLEET-006, but independent GitHub observation is unknown.",
+      "answer_latency_ms": 21.85274986550212,
+      "workspace": {
+        "schema": "operator_hub.owner_workspace.v1",
+        "ok": true,
+        "fetched_at": "2026-11-16T15:23:05Z",
+        "source_url": "http://127.0.0.1:8899/api/v1/owner-workspace"
+      },
+      "tts": {
+        "tts_chunks": 292,
+        "ttfa_ms": 3130.557166878134
+      }
+    }
+  ],
+  "owner_gateway_7780_touched": false,
+  "finished_at": "2026-11-16T15:23:20Z",
+  "status": "PASS"
+}

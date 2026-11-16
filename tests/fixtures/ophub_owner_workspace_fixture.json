@@ -1,0 +1,298 @@
+{
+  "schema": "operator_hub.owner_workspace.v1",
+  "read_only": true,
+  "control_plane": "reuse_existing_projections",
+  "second_control_plane": false,
+  "workflow": {
+    "stages": [
+      "capture",
+      "scope",
+      "approve",
+      "dispatch",
+      "verify",
+      "review",
+      "land"
+    ],
+    "owner_gates": [
+      "approve",
+      "land"
+    ],
+    "live_dispatch_enabled": false,
+    "automatic_merge_enabled": false,
+    "grant_minting_enabled": false,
+    "signing_changed": false
+  },
+  "navigation": [
+    {
+      "id": "agents",
+      "label": "Five agents",
+      "href": "#agents"
+    },
+    {
+      "id": "fleet",
+      "label": "Fleet + evidence",
+      "href": "#fleet"
+    },
+    {
+      "id": "burn",
+      "label": "Agent Burn",
+      "href": "#burn"
+    },
+    {
+      "id": "owner-review",
+      "label": "Owner PR review",
+      "href": "#owner-review"
+    },
+    {
+      "id": "workflow",
+      "label": "Workflow",
+      "href": "#workflow"
+    }
+  ],
+  "agents": {
+    "schema": "operator_hub.owner_workspace.agents.v1",
+    "configured_runtimes": [
+      "codex",
+      "claude",
+      "antigravity",
+      "grok",
+      "cursor"
+    ],
+    "agents": [
+      {
+        "runtime": "codex",
+        "installed": true,
+        "version": "fixture-codex",
+        "availability": "INSTALLED",
+        "running_state": "UNKNOWN",
+        "active_task": null,
+        "last_observation": null,
+        "evidence_links": [],
+        "notes": [
+          "fixture installed=true; running_state remains UNKNOWN",
+          "running_state/active_task require independent observation; not invented"
+        ],
+        "source": "fixture_observation",
+        "independently_observed_session": false
+      },
+      {
+        "runtime": "claude",
+        "installed": true,
+        "version": "fixture-claude",
+        "availability": "INSTALLED",
+        "running_state": "UNKNOWN",
+        "active_task": null,
+        "last_observation": null,
+        "evidence_links": [],
+        "notes": [
+          "fixture installed=true; running_state remains UNKNOWN",
+          "running_state/active_task require independent observation; not invented"
+        ],
+        "source": "fixture_observation",
+        "independently_observed_session": false
+      },
+      {
+        "runtime": "antigravity",
+        "installed": false,
+        "version": "UNKNOWN",
+        "availability": "NOT_INSTALLED",
+        "running_state": "UNKNOWN",
+        "active_task": null,
+        "last_observation": null,
+        "evidence_links": [],
+        "notes": [
+          "fixture not installed",
+          "running_state/active_task require independent observation; not invented"
+        ],
+        "source": "fixture_observation",
+        "independently_observed_session": false
+      },
+      {
+        "runtime": "grok",
+        "installed": true,
+        "version": "fixture-grok",
+        "availability": "INSTALLED",
+        "running_state": "UNKNOWN",
+        "active_task": null,
+        "last_observation": null,
+        "evidence_links": [],
+        "notes": [
+          "pool independence vs cursor UNKNOWN",
+          "running_state/active_task require independent observation; not invented"
+        ],
+        "source": "fixture_observation",
+        "independently_observed_session": false
+      },
+      {
+        "runtime": "cursor",
+        "installed": true,
+        "version": "fixture-cursor",
+        "availability": "INSTALLED",
+        "running_state": "UNKNOWN",
+        "active_task": null,
+        "last_observation": null,
+        "evidence_links": [],
+        "notes": [
+          "pool independence vs grok UNKNOWN",
+          "running_state/active_task require independent observation; not invented"
+        ],
+        "source": "fixture_observation",
+        "independently_observed_session": false
+      }
+    ],
+    "credentials_collected": false,
+    "live_cli_invoked": false,
+    "note": "Availability may reflect local PATH inventory when injected. Running sessions, active tasks, and costs stay UNKNOWN without receipts."
+  },
+  "fleet_burn": {
+    "ok": true,
+    "extension_point": "/fleet-burn-visibility + GET /api/v1/fleet-burn-visibility",
+    "protected_index_html": "UNTOUCHED",
+    "findings": [
+      "STALE_PR_HEAD:FLEET-006:a98e31994f52f14d07e329d69fe2351a7d5c4d1c->a1c9025eda30881d2b392dfcd5c577480cf3f44a",
+      "MISSING_AGENT_BURN_METERING:feature_off"
+    ],
+    "blockers": [
+      "AGENT_BURN_JOIN_FEATURE_OFF",
+      "CPU_MEM_PIDS_STRESS_NOT_CLAIMED",
+      "NOT_MERGED",
+      "STALE_PR_HEAD",
+      "TIP_DRIFT_DOCS_ONLY_VS_REVIEWED_HEAD",
+      "VERIFIED_LIVE_QUOTA_FALSE"
+    ],
+    "fleet_ok": true,
+    "fleet_global": {
+      "verified_live_quota": false,
+      "live_dispatched": false,
+      "provider_pools_status": "UNKNOWN",
+      "null_quota_live_rejection": true,
+      "owner_gates": {
+        "merge": false,
+        "deploy": false,
+        "live_dispatch": false,
+        "paid_calls": false
+      },
+      "ui_implies_live_dispatch": false,
+      "ui_implies_merge_authorization": false
+    },
+    "agent_burn": {
+      "source": "agent-burn-observatory",
+      "adapter": "operator_hub.agent_burn_join.v1",
+      "feature_env": "OPERATOR_HUB_AGENT_BURN_JOIN",
+      "feature_enabled": false,
+      "semantic_work_suppression": false,
+      "verified_completion": false,
+      "authorizes_dispatch": false,
+      "authorizes_effect": false,
+      "status": "FEATURE_DISABLED",
+      "usage_and_cost": null,
+      "wake_count": null,
+      "event_count": null,
+      "baseline_vs_observed": {
+        "comparable": false,
+        "baseline": "UNKNOWN",
+        "observed": "UNKNOWN",
+        "savings_claimed": null,
+        "note": "No invented savings; baseline comparison requires dual receipt-backed series"
+      },
+      "blockers": [
+        "AGENT_BURN_JOIN_FEATURE_OFF"
+      ],
+      "evidence_links": [],
+      "findings": [
+        "MISSING_AGENT_BURN_METERING:feature_off"
+      ]
+    },
+    "summary_text": "FLEET + AGENT BURN VISIBILITY (read-only)\nok=True digest=d5f3721a445c774d\u2026\nverified_live_quota=false live_dispatched=false semantic_work_suppression=false\n\n=== FLEET ===\nFLEET QUALIFICATION PROJECTION (read-only)\nok=True digest=8cb2a5d71628b78f\u2026\nverified_live_quota=false live_dispatched=false\n\n- FLEET-004 PR#68 verified=VERIFIED_REAL_CONTAINMENT gate=ACCEPT blockers=['NOT_MERGED', 'CPU_MEM_PIDS_STRESS_NOT_CLAIMED']\n  ladder PROPOSED=Y AUTHORIZED=Y EXECUTED=Y VERIFIED=Y OWNER_ACCEPTED=Y MERGED=N DEPLOYED=N\n- FLEET-005 PR#70 verified=VERIFIED_OFFLINE_QUOTA gate=ACCEPT blockers=['NOT_MERGED', 'VERIFIED_LIVE_QUOTA_FALSE']\n  ladder PROPOSED=Y AUTHORIZED=Y EXECUTED=Y VERIFIED=Y OWNER_ACCEPTED=Y MERGED=N DEPLOYED=N\n- FLEET-006 PR#71 verified=VERIFIED_INTEGRATED_OFFLINE gate=ACCEPT blockers=['NOT_MERGED', 'TIP_DRIFT_DOCS_ONLY_VS_REVIEWED_HEAD', 'STALE_PR_HEAD']\n  ladder PROPOSED=Y AUTHORIZED=Y EXECUTED=Y VERIFIED=Y OWNER_ACCEPTED=Y MERGED=N DEPLOYED=N\nfindings: STALE_PR_HEAD:FLEET-006:a98e31994f52f14d07e329d69fe2351a7d5c4d1c->a1c9025eda30881d2b392dfcd5c577480cf3f44a\nNO live dispatch / merge / deploy controls in this surface.\n\n=== AGENT BURN ===\nstatus=FEATURE_DISABLED wakes=None events=None\nusage=UNKNOWN / insufficient evidence\n\njoin_links=0\nNO dispatch / merge / deploy / spend controls.\n",
+    "evidence_links": [
+      {
+        "kind": "fleet_receipt",
+        "milestone": "FLEET-004",
+        "pr": 68,
+        "receipt_digest": "dfde7476dd9ff9091c2ee17d7ea1a35678827732b65d1e23718445165b2a3038"
+      },
+      {
+        "kind": "fleet_receipt",
+        "milestone": "FLEET-005",
+        "pr": 70,
+        "receipt_digest": "11b7c15370808e68d4f44d1285cf8d654286e673534b08e8117215cb8f6cb14f"
+      },
+      {
+        "kind": "fleet_receipt",
+        "milestone": "FLEET-006",
+        "pr": 71,
+        "receipt_digest": "81a9a9855f403657c8b5937684389c0979ec6566ae948c7964e114b04cca84f2"
+      }
+    ]
+  },
+  "commit_evidence_display": {
+    "independent_github_observation": false,
+    "status": "UNKNOWN",
+    "milestones": [
+      {
+        "id": "FLEET-004",
+        "pr": 68,
+        "verified_kind": "VERIFIED_REAL_CONTAINMENT",
+        "owner_gate": "ACCEPT",
+        "receipt_digest": "dfde7476dd9ff9091c2ee17d7ea1a35678827732b65d1e23718445165b2a3038",
+        "blockers": [
+          "NOT_MERGED",
+          "CPU_MEM_PIDS_STRESS_NOT_CLAIMED"
+        ],
+        "declared_head": "095702e99d70f104f030624bda0dffd08704b48c",
+        "reviewed_head": "095702e99d70f104f030624bda0dffd08704b48c",
+        "observed_head": null,
+        "head_provenance": "RECORDED_ONLY",
+        "evidence_ok": true
+      },
+      {
+        "id": "FLEET-005",
+        "pr": 70,
+        "verified_kind": "VERIFIED_OFFLINE_QUOTA",
+        "owner_gate": "ACCEPT",
+        "receipt_digest": "11b7c15370808e68d4f44d1285cf8d654286e673534b08e8117215cb8f6cb14f",
+        "blockers": [
+          "NOT_MERGED",
+          "VERIFIED_LIVE_QUOTA_FALSE"
+        ],
+        "declared_head": "ea3dfc0593928fa12aa1c694d84ec2f300c0c9c4",
+        "reviewed_head": "ea3dfc0593928fa12aa1c694d84ec2f300c0c9c4",
+        "observed_head": null,
+        "head_provenance": "RECORDED_ONLY",
+        "evidence_ok": true
+      },
+      {
+        "id": "FLEET-006",
+        "pr": 71,
+        "verified_kind": "VERIFIED_INTEGRATED_OFFLINE",
+        "owner_gate": "ACCEPT",
+        "receipt_digest": "81a9a9855f403657c8b5937684389c0979ec6566ae948c7964e114b04cca84f2",
+        "blockers": [
+          "NOT_MERGED",
+          "TIP_DRIFT_DOCS_ONLY_VS_REVIEWED_HEAD",
+          "STALE_PR_HEAD"
+        ],
+        "declared_head": "a1c9025eda30881d2b392dfcd5c577480cf3f44a",
+        "reviewed_head": "a98e31994f52f14d07e329d69fe2351a7d5c4d1c",
+        "observed_head": null,
+        "head_provenance": "RECORDED_ONLY",
+        "evidence_ok": true
+      }
+    ],
+    "note": "observed_head shown only with independent tip evidence; declared/reviewed remain recorded chain tips"
+  },
+  "owner_pr_review": null,
+  "owner_pr_review_routes": {
+    "html": "/owner-pr-review",
+    "api": "/api/v1/owner-pr-review",
+    "workspace_html": "/owner-workspace",
+    "workspace_api": "/api/v1/owner-workspace"
+  },
+  "ui_implies_live_dispatch": false,
+  "ui_implies_merge_authorization": false,
+  "ui_implies_provider_spending": false,
+  "ok": true,
+  "projection_digest": "878e3a7ba64380fc3c43cf48cece6014daa018217e99101302454a33008c3c66",
+  "fetched_at": "2026-11-16T15:00:00Z",
+  "source_url": "fixture://owner-workspace"
+}

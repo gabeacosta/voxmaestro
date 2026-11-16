@@ -1,0 +1,16 @@
+Q: Which agents are running?
+A (OK): No independently observed running sessions. Running state is unknown without independent session evidence. Installed agents in inventory: codex, claude, grok, cursor.
+---
+Q: What is Codex working on?
+A (OK): Codex active task is unknown. No independently observed session evidence is available.
+---
+Q: Show my active tasks.
+A (OK): No independently observed active tasks. Active work remains unknown without session receipts.
+---
+Q: Which agents are blocked?
+A (OK): Not installed: antigravity. Fleet blockers: AGENT_BURN_JOIN_FEATURE_OFF; CPU_MEM_PIDS_STRESS_NOT_CLAIMED; NOT_MERGED; STALE_PR_HEAD; TIP_DRIFT_DOCS_ONLY_VS_REVIEWED_HEAD.
+---
+Q: What has been independently verified?
+A (OK): Recorded verification markers exist for FLEET-004, FLEET-005, FLEET-006, but independent GitHub observation is unknown.
+---
+wrote /Users/clue/voxmaestro-local-complete-001/evidence/vox-ophub-convergence-004/physical_ophub_voice_receipt.json status=PASS
