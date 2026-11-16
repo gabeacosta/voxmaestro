@@ -16,7 +16,9 @@ from voxmaestro.tts.contract import (
     VoiceManifest,
 )
 from voxmaestro.tts.languages import ENABLED_LANGUAGES, enabled_language_support, require_enabled
+from voxmaestro.tts.kokoro import KokoroTTSBackend, KokoroTTSUnavailableError
 from voxmaestro.tts.pocket import PocketTTSBackend, PocketTTSNotInstalledError, pocket_language
+from voxmaestro.tts.router import LanguageRoutedTTSBackend
 from voxmaestro.tts.session import SessionAudio
 from voxmaestro.tts.worker import TTSWorker, WriterGate
 from voxmaestro.tts.writer import TurnWriter
@@ -26,7 +28,10 @@ __all__ = [
     "POCKET_TTS_LANGUAGES",
     "AudioChunk",
     "ConsentRecord",
+    "KokoroTTSBackend",
+    "KokoroTTSUnavailableError",
     "LanguageLane",
+    "LanguageRoutedTTSBackend",
     "LanguageSupport",
     "PocketTTSBackend",
     "PocketTTSNotInstalledError",

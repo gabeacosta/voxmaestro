@@ -1,0 +1,5 @@
+timestamp=2026-11-16T09:35:36Z
+owner_gateway_7780=21870
+kokoro_health={"status":"ok","model":"kokoro-onnx","voice":"bm_george"}
+ollama_tags_ok=yes
+kokoro_recovery_note=launchctl kickstart performed after health hang; synth http=200 after restart

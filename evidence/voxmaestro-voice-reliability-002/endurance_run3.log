@@ -1,0 +1,40 @@
+kokoro model=kokoro-onnx voice=bm_george
+ollama models=4
+[2026-11-16 01:05:23.914] [ctranslate2] [thread 32093392] [warning] Tip: experimental MPS backend is available and often 2x+ faster than CPU on Apple Silicon (varies by workload and hardware). Try device="mps".
+[2026-11-16 01:05:23.915] [ctranslate2] [thread 32093392] [warning] The compute type inferred from the saved model is float16, but the target device or backend do not support efficient float16 computation. The model weights have been automatically converted to use the float32 compute type instead.
+endurance-1 PASS asr=3182 llm=15247 ttfa=3374 e2e=34696 recovery=0
+endurance-2 PASS asr=3605 llm=10089 ttfa=3178 e2e=32589 recovery=0
+endurance-3 PASS asr=1097 llm=13097 ttfa=2160 e2e=29193 recovery=0
+endurance-4 PASS asr=4310 llm=12425 ttfa=2541 e2e=32378 recovery=0
+endurance-5 PASS asr=3374 llm=11892 ttfa=3129 e2e=31504 recovery=0
+endurance-6 PASS asr=4778 llm=15026 ttfa=3411 e2e=36974 recovery=0
+endurance-7 empty_transcript recovery attempt=1
+endurance-7 PASS asr=7736 llm=5503 ttfa=3081 e2e=43312 recovery=1
+endurance-8 empty_transcript recovery attempt=1
+endurance-8 PASS asr=3357 llm=21494 ttfa=12379 e2e=62528 recovery=1
+endurance-9 PASS asr=3423 llm=9207 ttfa=3312 e2e=30476 recovery=0
+endurance-10 empty_transcript recovery attempt=1
+endurance-10 PASS asr=6515 llm=7158 ttfa=3264 e2e=40927 recovery=1
+endurance-11 PASS asr=2962 llm=15631 ttfa=4601 e2e=42410 recovery=0
+endurance-12 PASS asr=1144 llm=5393 ttfa=6714 e2e=25258 recovery=0
+endurance-13 PASS asr=611 llm=6035 ttfa=4237 e2e=26367 recovery=0
+endurance-14 PASS asr=3064 llm=11936 ttfa=175927 e2e=386022 recovery=1
+endurance-15 FAIL timed out
+endurance-16 PASS asr=3001 llm=40161 ttfa=59772 e2e=130708 recovery=0
+endurance-17 PASS asr=5001 llm=8228 ttfa=6030 e2e=106755 recovery=0
+endurance-18 PASS asr=4490 llm=6915 ttfa=144423 e2e=350595 recovery=1
+endurance-19 FAIL timed out
+endurance-20 empty_transcript recovery attempt=1
+endurance-20 FAIL timed out
+{
+  "asr_ms_p50": 3373.818124877289,
+  "asr_ms_p95": 6758.922208612784,
+  "llm_ms_p50": 11892.302708001807,
+  "llm_ms_p95": 25227.377950213835,
+  "first_audio_ms_p50": 3410.8313750475645,
+  "first_audio_ms_p95": 150723.44694226046,
+  "e2e_ms_p50": 36974.09158293158,
+  "e2e_ms_p95": 357680.654199468,
+  "mean_e2e_ms": 84864.10833565134
+}
+status=FAIL success_rate=0.85
