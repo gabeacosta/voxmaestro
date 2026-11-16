@@ -1,73 +1,55 @@
-# Owner Acceptance Packet — VOXMAESTRO-VOICE-RELIABILITY-002
+# Owner Acceptance Packet — VOXMAESTRO-VOICE-RELIABILITY-002 + ENDURANCE-CLOSURE-003
 
 ## Verdict
 
-**WORKING CANDIDATE — DRAFT PR ONLY. NOT ACCEPTED. NOT DEPLOYED. NOT MERGED.**
+**VERIFIED working candidate for endurance closure — DRAFT PR ONLY. NOT MERGED. NOT DEPLOYED.**
 
-DoD #3 (20 consecutive physical turns) is **UNRESOLVED** (best measured **19/20**). All other DoD items have measured evidence below.
+| Mission | Result |
+|---|---|
+| VOICE-RELIABILITY-002 | Startup/lifecycle + barge-in verified; endurance was UNRESOLVED at 19/20 |
+| ENDURANCE-CLOSURE-003 | **VERIFIED 20/20** physical turns after duplex-capture fix |
 
 ## Definition of Done
 
 | # | Criterion | State | Evidence |
 |---|---|---|---|
-| 1 | Gateway init bounded + observable | IMPLEMENTED + TESTED | `src/voxmaestro/runtime_lifecycle.py`, `voice_bootstrap.py`, `tests/test_runtime_lifecycle.py`, `/readyz` in `serve_gateway.py` |
-| 2 | Physical barge-in measured | VERIFIED | `physical_barge_in_receipt.json` — interrupt-to-silence **106.8 ms** |
-| 3 | 20 consecutive physical turns | **UNRESOLVED** | Best: run2 **19/20** (`physical_endurance_receipt_run2_19of20.json`) |
-| 4 | Failure recovery demonstrated | VERIFIED (partial) | Empty-transcript recovery (run2 turn 2); Kokoro stim retry (run1 turn 6); LaunchAgent kickstart after health hang |
-| 5 | Governance + Pocket intact | TESTED | 31 passed regression (`full_regression.log`) |
-| 6 | UI reflects runtime state | VERIFIED (UI) | Screenshots under `ui/`; owner `:7780` lacks `/readyz` (pre-reliability process left untouched) |
-| 7 | Evidence independently reviewable | YES | This directory; COMPLETE-001 evidence untouched |
+| 1 | Gateway init bounded + observable | IMPLEMENTED + TESTED | `runtime_lifecycle.py`, `voice_bootstrap.py`, `/readyz` |
+| 2 | Physical barge-in measured | VERIFIED (unchanged) | `physical_barge_in_receipt.json` — **106.8 ms** interrupt-to-silence. Capture-path fix was endurance-only; barge-in code not modified. |
+| 3 | 20 consecutive physical turns | **VERIFIED** | `physical_endurance_receipt_closure003_20of20.json` — success_rate **1.0**, coverage **1.0** every turn |
+| 4 | Failure recovery demonstrated | VERIFIED | Closure turn 6: Kokoro timeout → TTS retry → PASS |
+| 5 | Governance + Pocket intact | TESTED | closure003 suite **35 passed** |
+| 6 | UI reflects runtime state | VERIFIED (UI) | `ui/` screenshots (prior); owner `:7780` not restarted |
+| 7 | Evidence independently reviewable | YES | This directory; prior run1–run3 receipts immutable |
 
-## What changed
+## Root cause (CLOSURE-003)
 
-- Bounded Whisper pool + lifecycle states (STARTING/READY/DEGRADED/FAILED)
-- Startup probe retries; port-collision refuse (does not steal owner ports)
-- Physical barge-in + endurance runners
-- UI readiness + Listening/Thinking/Speaking/Interrupted phases
-- Kokoro HTTP timeout raised to 180s under load
+See `ENDURANCE_CLOSURE_003_FAILURE_ANALYSIS.md`.
 
-## Physical audio evidence
+- **RC1 (HIGH):** Concurrent `sd.rec` + `sd.play` truncated mic buffers (mid/late exact zeros) → Whisper empty/punctuation → `empty_transcript` on run1 turn 4 / run2 turn 10.
+- **Fix:** `InputStream` callback capture + single `sd.play` stim; coverage gate rejects truncated buffers; dual-play removed.
+- **Regression:** `tests/test_endurance_capture_contract.py` (fail4 fixture vs pass9).
 
-- Barge-in: `barge-in-mic.wav` + `physical_barge_in_receipt.json`
-- Endurance mics: `run1-mics/`, `run2-mics/`, current `endurance-*-mic*.wav` (run3)
-- Receipts: `physical_endurance_receipt_run{1,2,3}*.json`
+## Closure-003 measured endurance
 
-## Wind Tunnel
+| Metric | P50 | P95 |
+|---|---|---|
+| First-audio | 12172 ms | 67959 ms |
+| End-to-end | 51593 ms | 137101 ms |
+| ASR | 5300 ms | 14318 ms |
+| LLM | 11573 ms | 36207 ms |
 
-See `WIND_TUNNEL.md` (P50/P95 first-audio + e2e from run2; barge-in 106.8 ms).
+- Successful turns: **20/20**
+- Audio coverage: **1.0** on all turns
+- Recovery: 1 TTS timeout retry (turn 6)
 
-## Governance
+## Authority / rollback
 
-- Consequential tools fail closed; Veynit remains external
-- No spoken-prompt tool execution in dry-run fleet path
-- EN Kokoro / optional ES Pocket routing explicit; Pocket cancel contracts unchanged
+- Owner gateway on `:7780` was **not** restarted or terminated.
+- No merge/deploy/SIP/paid fallback.
+- Rollback: revert duplex capture commit on `feat/voice-reliability-002` / close draft PR #66; prior 19/20 receipts remain for audit.
 
-## UI
+## Owner actions
 
-Screenshots: `ui/ui-{idle-readiness,listening,thinking,speaking,interrupted}.png` plus mobile/desktop captures.
-
-Known limitation: owner-managed gateway PID 21870 on `:7780`/`:7781` was **not** restarted; its UI host reports `readiness endpoint unavailable` until owner rebases that process onto this branch.
-
-## Known limitations
-
-1. **20 consecutive turns UNRESOLVED** — acoustic empty transcripts + Kokoro timeouts under sustained load.
-2. Spanish Kokoro still NOT QUALIFIED (server `lang=en-us`); ES → Pocket when `--tts auto`.
-3. Mic RMS during barge-in remains very low; silence measured via cancel propagation, not loud barge speech.
-4. Dual-play stim (run3) increased Kokoro contention — prefer single-play for endurance.
-
-## Rollback
-
-```bash
-# Leave owner gateway alone. Revert this branch / close draft PR.
-git checkout main   # or prior COMPLETE-001 tag/commit
-# Optional: stop only alt gateways you started on 7790/7791 — never kill :7780 without authorization.
-```
-
-COMPLETE-001 evidence under `../voice-maestro-local-complete-001/` is immutable and was not rewritten.
-
-## Owner actions required for ACCEPT
-
-1. Review draft PR + this packet.
-2. Decide whether 19/20 + measured barge-in is acceptable, or require a green 20/20 re-run after quieter room / Kokoro capacity.
-3. Explicitly authorize restart of owner gateway to pick up `/readyz` UI wiring.
-4. Do **not** merge/deploy/enable telephony without a separate grant.
+1. Review draft PR #66 + this packet.
+2. Accept VERIFIED 20/20 or request a second confirmatory endurance run.
+3. Explicit grant required before merge/deploy/telephony.

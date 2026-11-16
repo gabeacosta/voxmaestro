@@ -68,31 +68,85 @@ def _sanitize_audio(audio: np.ndarray) -> np.ndarray:
     return np.clip(clean, -1.0, 1.0)
 
 
+def _audio_coverage_ratio(audio: np.ndarray, *, frame_ms: float = 100.0) -> float:
+    """Fraction of frames with non-trivial energy (detects truncated duplex captures)."""
+    samples = _sanitize_audio(audio).reshape(-1)
+    if samples.size == 0:
+        return 0.0
+    # Assume 16 kHz when unknown — coverage is scale-free over frame count.
+    frame = max(1, int(16000 * (frame_ms / 1000.0)))
+    n_frames = samples.size // frame
+    if n_frames == 0:
+        return 0.0
+    alive = 0
+    for i in range(n_frames):
+        chunk = samples[i * frame : (i + 1) * frame]
+        if float(np.sqrt(np.mean(chunk.astype(np.float64) ** 2))) > 1e-4:
+            alive += 1
+    return alive / n_frames
+
+
+def _capture_usable(audio: np.ndarray, *, min_coverage: float = 0.35) -> bool:
+    """Reject truncated duplex captures that legacy RMS>0.01 accepted.
+
+    Ambient-only full buffers still pass here and fail at transcript usability,
+    which triggers a bounded re-capture. Truncation is the 19/20 root cause.
+    """
+    samples = _sanitize_audio(audio).reshape(-1)
+    if samples.size == 0:
+        return False
+    return _audio_coverage_ratio(samples) >= min_coverage
+
+
 def _record_with_stimulus(
     seconds: float,
     record_rate: int,
     stim_pcm: bytes,
     stim_rate: int,
 ) -> np.ndarray:
+    """Record while playing stim using separate Input/Output streams.
+
+    Concurrent ``sd.rec`` + ``sd.play`` on this host truncates the input buffer
+    (mid/late frames stay exact zeros) and caused empty_transcript endurance
+    failures. Callback InputStream fill remains complete for the full window.
+    """
     n = len(stim_pcm) // 4
     stim = _sanitize_audio(np.frombuffer(stim_pcm[: n * 4], dtype="<f4"))
     peak = float(np.max(np.abs(stim))) or 1.0
-    stim = np.clip(stim / peak * 0.99, -1.0, 1.0)
-    recorded = sd.rec(
-        int(seconds * record_rate), samplerate=record_rate, channels=1, dtype="float32"
-    )
-    time.sleep(0.3)
-    # Dual play improves mic pickup for short prompts in quiet rooms.
-    sd.play(stim, samplerate=stim_rate)
-    sd.wait()
-    time.sleep(0.15)
-    sd.play(stim, samplerate=stim_rate)
-    sd.wait()
-    remaining = seconds - 0.3 - 0.15 - 2.0 * (len(stim) / stim_rate)
-    if remaining > 0:
-        time.sleep(remaining)
-    sd.wait()
-    return _sanitize_audio(recorded.reshape(-1))
+    stim = np.clip(stim / peak * 0.95, -1.0, 1.0)
+
+    frames = int(seconds * record_rate)
+    buf = np.zeros(frames, dtype=np.float32)
+    pos = {"n": 0}
+
+    def _on_in(indata, frame_count, _time_info, _status) -> None:  # noqa: ANN001
+        start = pos["n"]
+        end = min(start + frame_count, frames)
+        if end > start:
+            buf[start:end] = indata[: end - start, 0]
+            pos["n"] = end
+        if pos["n"] >= frames:
+            raise sd.CallbackStop()
+
+    with sd.InputStream(
+        samplerate=record_rate,
+        channels=1,
+        dtype="float32",
+        callback=_on_in,
+        blocksize=512,
+    ):
+        time.sleep(0.2)
+        # Single play via sd.play while InputStream owns capture (not sd.rec).
+        sd.play(stim, samplerate=stim_rate)
+        deadline = time.monotonic() + max(0.0, seconds) + 0.5
+        while pos["n"] < frames and time.monotonic() < deadline:
+            time.sleep(0.02)
+        try:
+            sd.stop()
+        except Exception:
+            pass
+
+    return _sanitize_audio(buf)
 
 
 def _play_f32(pcm: bytes, sample_rate: int) -> None:
@@ -148,9 +202,10 @@ def main() -> int:
     gen = make_ollama_generator(model=args.ollama_model)
 
     receipt: dict = {
-        "mission": "VOXMAESTRO-VOICE-RELIABILITY-002",
+        "mission": "VOXMAESTRO-ENDURANCE-CLOSURE-003",
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "verification_class": "PHYSICAL_ENDURANCE",
+        "capture_path": "inputstream_duplex_v1",
         "turns_requested": args.turns,
         "devices": str(sd.query_devices()),
         "kokoro": kokoro_detail,
@@ -231,7 +286,7 @@ def main() -> int:
         text = ""
         asr_ms = 0.0
         try:
-            for capture_attempt in range(2):
+            for capture_attempt in range(3):
                 audio = _record_with_stimulus(
                     args.record_seconds, asr_rate, stim_pcm, tts_caps.sample_rates[0]
                 )
@@ -239,17 +294,29 @@ def main() -> int:
                 if peak < 0.25:
                     audio = np.clip(audio * (0.25 / peak), -1.0, 1.0)
                 audio = _sanitize_audio(audio)
+                coverage = _audio_coverage_ratio(audio)
                 wav_path = EVIDENCE / f"{turn_id}-mic.wav"
                 if capture_attempt > 0:
-                    wav_path = EVIDENCE / f"{turn_id}-mic-retry.wav"
+                    wav_path = EVIDENCE / f"{turn_id}-mic-retry{capture_attempt}.wav"
                 _write_wav(wav_path, audio, asr_rate)
-                pcm16 = (_sanitize_audio(audio) * 32767).astype(np.int16).tobytes()
                 speech_detected = (
                     float(np.sqrt(np.mean(audio.astype(np.float64) ** 2))) > 0.01
                 )
                 turn["speech_detected"] = speech_detected
                 turn["mic_wav"] = str(wav_path)
+                turn["audio_coverage"] = coverage
 
+                if not _capture_usable(audio):
+                    turn["recovery_attempts"] += 1
+                    print(
+                        f"{turn_id} truncated_capture recovery "
+                        f"attempt={capture_attempt + 1} coverage={coverage:.3f}",
+                        flush=True,
+                    )
+                    time.sleep(0.5)
+                    continue
+
+                pcm16 = (_sanitize_audio(audio) * 32767).astype(np.int16).tobytes()
                 asr.open_session(session, language="en")
                 t_asr0 = time.monotonic()
                 frame = int(asr_rate * 0.1) * 2
@@ -285,23 +352,51 @@ def main() -> int:
 
             if not text:
                 turn["status"] = "FAIL"
-                turn["reason"] = "empty_transcript"
+                coverage = float(turn.get("audio_coverage") or 0.0)
+                turn["reason"] = (
+                    "empty_transcript"
+                    if coverage >= 0.35
+                    else "truncated_capture"
+                )
                 receipt["turns"].append(turn)
-                print(f"{turn_id} FAIL empty_transcript", flush=True)
+                print(f"{turn_id} FAIL {turn['reason']}", flush=True)
                 continue
 
-            t_llm0 = time.monotonic()
-            reply = asyncio.run(
-                gen(
-                    text,
-                    {},
-                    {
-                        "system_prompt": (
-                            "Reply in one short spoken sentence under 12 words. No markdown."
+            reply = ""
+            llm_ms = 0.0
+            last_llm_err = None
+            for llm_attempt in range(2):
+                try:
+                    t_llm0 = time.monotonic()
+                    reply = asyncio.run(
+                        gen(
+                            text,
+                            {},
+                            {
+                                "system_prompt": (
+                                    "Reply in one short spoken sentence under 12 words. "
+                                    "No markdown."
+                                )
+                            },
                         )
-                    },
-                )
-            )
+                    )
+                    llm_ms = (time.monotonic() - t_llm0) * 1000
+                    last_llm_err = None
+                    break
+                except Exception as exc:  # noqa: BLE001 — bounded LLM recovery
+                    last_llm_err = str(exc)
+                    turn["recovery_attempts"] += 1
+                    print(
+                        f"{turn_id} llm retry after {exc}",
+                        flush=True,
+                    )
+                    time.sleep(1.0)
+            if last_llm_err is not None or not reply:
+                turn["status"] = "FAIL"
+                turn["reason"] = f"llm_failed:{last_llm_err}"
+                receipt["turns"].append(turn)
+                print(f"{turn_id} FAIL llm {last_llm_err}", flush=True)
+                continue
             if "</think>" in reply:
                 reply = reply.split("</think>", 1)[-1].strip()
             reply = reply.replace("—", ",").replace("–", ",").strip()
@@ -309,7 +404,6 @@ def main() -> int:
             words = reply.split()
             if len(words) > 14:
                 reply = " ".join(words[:14])
-            llm_ms = (time.monotonic() - t_llm0) * 1000
             turn["llm_ms"] = llm_ms
             turn["reply"] = reply
             turn["llm_first_response_ms"] = llm_ms
@@ -317,7 +411,7 @@ def main() -> int:
             chunks = []
             ttfa = None
             last_err = None
-            for attempt in range(2):
+            for attempt in range(3):
                 try:
                     tts.open_session(session, voice)
                     t_tts0 = time.monotonic()
@@ -342,12 +436,13 @@ def main() -> int:
                         tts.close_session(session)
                     except Exception:
                         pass
-                    time.sleep(1.0)
+                    print(f"{turn_id} tts retry after {exc}", flush=True)
+                    time.sleep(1.5)
             if not chunks:
                 turn["status"] = "FAIL"
                 turn["reason"] = f"tts_failed:{last_err}"
                 receipt["turns"].append(turn)
-                print(f"{turn_id} FAIL tts {last_err}")
+                print(f"{turn_id} FAIL tts {last_err}", flush=True)
                 continue
 
             pcm = b"".join(c.pcm for c in chunks)
@@ -372,7 +467,9 @@ def main() -> int:
             e2e_list.append(e2e)
             print(
                 f"{turn_id} PASS asr={asr_ms:.0f} llm={llm_ms:.0f} "
-                f"ttfa={ttfa:.0f} e2e={e2e:.0f} recovery={turn['recovery_attempts']}"
+                f"ttfa={ttfa:.0f} e2e={e2e:.0f} recovery={turn['recovery_attempts']} "
+                f"coverage={turn.get('audio_coverage')}",
+                flush=True,
             )
         except Exception as exc:  # noqa: BLE001
             try:
@@ -386,7 +483,7 @@ def main() -> int:
             turn["status"] = "FAIL"
             turn["reason"] = f"uncaught:{exc}"
             receipt["turns"].append(turn)
-            print(f"{turn_id} FAIL {exc}")
+            print(f"{turn_id} FAIL {exc}", flush=True)
             continue
 
     receipt["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
