@@ -7,7 +7,6 @@ import io
 import struct
 import threading
 import wave
-from collections.abc import Iterator
 from typing import Any
 
 import pytest
